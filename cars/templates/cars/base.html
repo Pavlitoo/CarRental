@@ -13,7 +13,12 @@
             <a class="navbar-brand" href="{% url 'car_list' %}">🚖 CarRental</a>
             <div class="navbar-nav ms-auto">
                 {% if user.is_authenticated %}
-                    <span class="nav-item nav-link text-white">Привіт, {{ user.username }}</span>
+                    <span class="nav-item nav-link text-white me-3">👤 {{ user.username }}</span>
+                    
+                    <a class="nav-link btn btn-outline-light btn-sm text-white px-3 me-2" href="{% url 'my_bookings' %}">
+                        Мої бронювання
+                    </a>
+
                     <a class="nav-item nav-link" href="/admin/">Адмінка</a>
                 {% else %}
                     <a class="nav-item nav-link" href="/admin/">Увійти</a>

@@ -26,6 +26,15 @@ class Booking(models.Model):
     def __str__(self):
         return f"{self.user} забронював {self.car} з {self.start_date} по {self.end_date}"
 
+    @property
+    def total_price(self):
+        # Рахуємо різницю в днях
+        duration = (self.end_date - self.start_date).days
+        # Якщо бронювання на 1 день або менше, рахуємо як 1 день
+        if duration <= 0:
+            duration = 1
+        return duration * self.car.price_per_day
+
     class Meta:
         verbose_name = "Бронювання"
         verbose_name_plural = "Бронювання"
