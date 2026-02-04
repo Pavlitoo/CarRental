@@ -3,6 +3,8 @@ from .models import Car, Booking
 from .forms import BookingForm
 from django.db.models import Q # <-- Це для складних запитів, хоча тут можна і без нього, але хай буде для профі
 from django.contrib.auth.decorators import login_required # <-- Додай цей імпорт на самому верху!
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import login
 
 def car_list(request):
     cars = Car.objects.all()
@@ -49,3 +51,27 @@ def my_bookings(request):
     # Шукаємо бронювання, де user = той, хто зараз на сайті
     bookings = Booking.objects.filter(user=request.user).order_by('-created_at')
     return render(request, 'cars/my_bookings.html', {'bookings': bookings})
+
+
+def signup(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user) # Одразу логінимо користувача після реєстрації
+            return redirect('car_list')
+    else:
+        form = UserCreationForm()
+    return render(request, 'registration/signup.html', {'form': form})
+
+@login_required
+def cancel_booking(request, pk):
+    # Шукаємо бронювання. Якщо воно чуже - видасть помилку 404
+    booking = get_object_or_404(Booking, pk=pk, user=request.user)
+    
+    if request.method == 'POST':
+        booking.delete()
+        return redirect('my_bookings')
+    
+    # Якщо хтось спробує відкрити це посилання просто так - повернемо назад
+    return redirect('my_bookings')

@@ -118,3 +118,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+# Куди перекидати після успішного входу
+LOGIN_REDIRECT_URL = 'car_list'
+# Куди перекидати після виходу (на головну)
+LOGOUT_REDIRECT_URL = 'car_list'

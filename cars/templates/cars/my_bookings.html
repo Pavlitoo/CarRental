@@ -16,7 +16,7 @@
                     <th>Вартість</th>
                     <th>Створено</th>
                     <th>Статус</th>
-                </tr>
+                    <th>Дії</th> </tr>
             </thead>
             <tbody>
                 {% for booking in bookings %}
@@ -37,8 +37,17 @@
                     <td>
                         <span class="badge bg-success">Підтверджено</span>
                     </td>
-                </tr>
-                {% endfor %}
+                    
+                    <td>
+                        <form action="{% url 'cancel_booking' booking.pk %}" method="post"
+                            onsubmit="return confirm('Ви впевнені, що хочете скасувати це бронювання?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                ❌ Скасувати
+                            </button>
+                        </form>
+                    </td>
+                </tr> {% endfor %}
             </tbody>
         </table>
         {% else %}

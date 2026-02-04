@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('accounts/', include('django.contrib.auth.urls')),  # <-- Додали вбудовані URL для аутентифікації
     path('', include('cars.urls')),  # <-- Головна сторінка тепер веде в cars
 ]
 

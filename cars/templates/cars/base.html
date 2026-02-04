@@ -19,9 +19,14 @@
                         Мої бронювання
                     </a>
 
-                    <a class="nav-item nav-link" href="/admin/">Адмінка</a>
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="nav-link btn btn-link text-secondary" style="text-decoration: none;">Вийти</button>
+                    </form>
+
                 {% else %}
-                    <a class="nav-item nav-link" href="/admin/">Увійти</a>
+                    <a class="nav-item nav-link" href="{% url 'login' %}">Увійти</a>
+                    <a class="nav-item nav-link fw-bold text-warning" href="{% url 'signup' %}">Реєстрація</a>
                 {% endif %}
             </div>
         </div>
