@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ car.brand }} {{ car.model }}</title>
+</head>
+<body>
+    <a href="/">← Назад до списку</a>
+
+    <div style="margin-top: 20px; border: 1px solid #ddd; padding: 20px; max-width: 600px;">
+        <h1>{{ car.brand }} {{ car.model }}</h1>
+        
+        {% if car.image %}
+            <img src="{{ car.image.url }}" style="width: 100%; max-height: 400px; object-fit: cover;">
+        {% endif %}
+
+        <h2>{{ car.price_per_day }} грн / доба</h2>
+        
+        <p style="white-space: pre-line;">{{ car.description }}</p> <hr>
+        
+        <hr>
+        <h3>Забронювати авто:</h3>
+
+        {% if form.non_field_errors %}
+            <div style="background-color: #ffcccc; color: red; padding: 10px; border: 1px solid red; margin-bottom: 15px;">
+                {% for error in form.non_field_errors %}
+                    <p style="margin: 0;">⚠️ {{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        <form method="post" style="margin-top: 15px;">
+            {% csrf_token %} <p>
+                <label>З якого числа:</label><br>
+                {{ form.start_date }}
+            </p>
+            <p>
+                <label>По яке число:</label><br>
+                {{ form.end_date }}
+            </p>
+
+            <button type="submit" style="background: green; color: white; padding: 10px 20px; border: none; cursor: pointer;">
+                ПІДТВЕРДИТИ БРОНЮВАННЯ
+            </button>
+        </form>
+    </div>
+</body>
+</html>

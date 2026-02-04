@@ -16,7 +16,7 @@
 
                 <h2>{{ car.brand }} {{ car.model }}</h2>
                 <p>Ціна: <strong>{{ car.price_per_day }} грн/доба</strong></p>
-                <a href="#">Забронювати</a>
+                <a href="{% url 'car_detail' car.pk %}">Детальніше / Забронювати</a>
             </div>
         {% endfor %}
     </div>

@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 class Car(models.Model):
     brand = models.CharField(max_length=50, verbose_name="Марка")
@@ -14,3 +15,17 @@ class Car(models.Model):
     class Meta:
         verbose_name = "Автомобіль"
         verbose_name_plural = "Автомобілі"
+
+class Booking(models.Model):
+    car = models.ForeignKey(Car, on_delete=models.CASCADE, verbose_name="Авто")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Клієнт")
+    start_date = models.DateField(verbose_name="Дата початку")
+    end_date = models.DateField(verbose_name="Дата кінця")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Час створення")
+
+    def __str__(self):
+        return f"{self.user} забронював {self.car} з {self.start_date} по {self.end_date}"
+
+    class Meta:
+        verbose_name = "Бронювання"
+        verbose_name_plural = "Бронювання"
