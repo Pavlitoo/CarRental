@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Оренда авто</title>
+</head>
+<body>
+    <h1>Наш автопарк</h1>
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+        {% for car in cars %}
+            <div style="border: 1px solid #ccc; padding: 10px; width: 300px;">
+                
+                {% if car.image %}
+                    <img src="{{ car.image.url }}" style="width: 100%; height: 200px; object-fit: cover;">
+                {% endif %}
+
+                <h2>{{ car.brand }} {{ car.model }}</h2>
+                <p>Ціна: <strong>{{ car.price_per_day }} грн/доба</strong></p>
+                <a href="#">Забронювати</a>
+            </div>
+        {% endfor %}
+    </div>
+
+</body>
+</html>
