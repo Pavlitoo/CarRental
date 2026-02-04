@@ -1,47 +1,57 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{{ car.brand }} {{ car.model }}</title>
-</head>
-<body>
-    <a href="/">← Назад до списку</a>
+{% extends 'cars/base.html' %}
 
-    <div style="margin-top: 20px; border: 1px solid #ddd; padding: 20px; max-width: 600px;">
-        <h1>{{ car.brand }} {{ car.model }}</h1>
-        
+{% block content %}
+<div class="row mt-4">
+    <div class="col-md-6">
         {% if car.image %}
-            <img src="{{ car.image.url }}" style="width: 100%; max-height: 400px; object-fit: cover;">
+            <img src="{{ car.image.url }}" class="img-fluid rounded shadow" alt="{{ car.brand }}">
+        {% else %}
+            <div class="p-5 bg-secondary text-white text-center rounded">Фото відсутнє</div>
         {% endif %}
+    </div>
 
-        <h2>{{ car.price_per_day }} грн / доба</h2>
+    <div class="col-md-6">
+        <h1 class="display-5">{{ car.brand }} {{ car.model }}</h1>
+        <h3 class="text-success fw-bold mb-4">{{ car.price_per_day }} грн <small class="text-muted fs-6">/ доба</small></h3>
         
-        <p style="white-space: pre-line;">{{ car.description }}</p> <hr>
-        
+        <div class="card p-3 mb-4 bg-light border-0">
+            <h5 class="mb-3">Опис та комплектація:</h5>
+            <p style="white-space: pre-line;">{{ car.description }}</p>
+        </div>
+
         <hr>
-        <h3>Забронювати авто:</h3>
 
         {% if form.non_field_errors %}
-            <div style="background-color: #ffcccc; color: red; padding: 10px; border: 1px solid red; margin-bottom: 15px;">
+            <div class="alert alert-danger" role="alert">
                 {% for error in form.non_field_errors %}
-                    <p style="margin: 0;">⚠️ {{ error }}</p>
+                    <strong>Упс!</strong> {{ error }}
                 {% endfor %}
             </div>
         {% endif %}
-        
-        <form method="post" style="margin-top: 15px;">
-            {% csrf_token %} <p>
-                <label>З якого числа:</label><br>
-                {{ form.start_date }}
-            </p>
-            <p>
-                <label>По яке число:</label><br>
-                {{ form.end_date }}
-            </p>
 
-            <button type="submit" style="background: green; color: white; padding: 10px 20px; border: none; cursor: pointer;">
-                ПІДТВЕРДИТИ БРОНЮВАННЯ
-            </button>
-        </form>
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                📅 Забронювати авто
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">З якого:</label>
+                            {{ form.start_date }}
+                        </div>
+                        <div class="col">
+                            <label class="form-label">По яке:</label>
+                            {{ form.end_date }}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100 btn-lg">Підтвердити бронювання</button>
+                </form>
+            </div>
+        </div>
+        
+        <a href="{% url 'car_list' %}" class="btn btn-link mt-3">← Повернутися до списку</a>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}

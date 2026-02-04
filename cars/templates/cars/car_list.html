@@ -1,25 +1,32 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Оренда авто</title>
-</head>
-<body>
-    <h1>Наш автопарк</h1>
+{% extends 'cars/base.html' %}
 
-    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+{% block content %}
+    <h1 class="text-center mb-4">Наш автопарк</h1>
+
+    <div class="row row-cols-1 row-cols-md-3 g-4">
         {% for car in cars %}
-            <div style="border: 1px solid #ccc; padding: 10px; width: 300px;">
-                
+        <div class="col">
+            <div class="card h-100 shadow-sm">
                 {% if car.image %}
-                    <img src="{{ car.image.url }}" style="width: 100%; height: 200px; object-fit: cover;">
+                    <img src="{{ car.image.url }}" class="card-img-top" alt="{{ car.brand }}" style="height: 200px; object-fit: cover;">
+                {% else %}
+                    <div class="bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 200px;">
+                        Немає фото
+                    </div>
                 {% endif %}
-
-                <h2>{{ car.brand }} {{ car.model }}</h2>
-                <p>Ціна: <strong>{{ car.price_per_day }} грн/доба</strong></p>
-                <a href="{% url 'car_detail' car.pk %}">Детальніше / Забронювати</a>
+                
+                <div class="card-body">
+                    <h5 class="card-title">{{ car.brand }} {{ car.model }}</h5>
+                    <p class="card-text text-success fw-bold">{{ car.price_per_day }} грн <small class="text-muted">/ доба</small></p>
+                    
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'car_detail' car.pk %}" class="btn btn-primary">
+                            Детальніше / Забронювати
+                        </a>
+                    </div>
+                </div>
             </div>
+        </div>
         {% endfor %}
     </div>
-
-</body>
-</html>
+{% endblock %}
