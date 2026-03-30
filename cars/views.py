@@ -1,20 +1,21 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from .models import Car, Booking, Category # <-- Додали Category
-from .forms import BookingForm
+from .models import Car, Booking, Category, Review
+from .forms import BookingForm, ReviewForm # <-- Додали ReviewForm
 from django.db.models import Q
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
+from django.utils import timezone
 import csv
 from django.http import HttpResponse, JsonResponse
 
 def car_list(request):
     cars = Car.objects.filter(is_available=True)
-    categories = Category.objects.all() # <-- Отримуємо всі категорії для меню
+    categories = Category.objects.all()
     
     query = request.GET.get('q')
     max_price = request.GET.get('max_price')
-    category_id = request.GET.get('category') # <-- Отримуємо вибрану категорію
+    category_id = request.GET.get('category')
     
     if query:
         cars = cars.filter(Q(brand__icontains=query) | Q(model__icontains=query))
@@ -25,7 +26,7 @@ def car_list(request):
         except ValueError:
             pass
             
-    if category_id: # <-- Фільтруємо по категорії
+    if category_id:
         cars = cars.filter(category_id=category_id)
             
     return render(request, 'cars/car_list.html', {
@@ -38,34 +39,65 @@ def car_list(request):
 
 def car_detail(request, pk):
     car = get_object_or_404(Car, pk=pk)
+    # Отримуємо всі відгуки для цієї машини від найновіших
+    reviews = car.reviews.all().order_by('-created_at')
+
+    # Логіка: чи має право користувач залишити відгук?
+    can_review = False
+    if request.user.is_authenticated:
+        # Перевіряємо, чи є завершені бронювання у цього користувача на це авто
+        can_review = Booking.objects.filter(
+            user=request.user,
+            car=car,
+            end_date__lt=timezone.now().date()
+        ).exists()
+
+    form = BookingForm()
+    review_form = ReviewForm()
 
     if request.method == 'POST':
-        form = BookingForm(request.POST)
-        if form.is_valid():
-            start = form.cleaned_data['start_date']
-            end = form.cleaned_data['end_date']
+        # Якщо в POST є 'rating', значить відправили форму відгуку
+        if 'rating' in request.POST:
+            review_form = ReviewForm(request.POST)
+            if review_form.is_valid() and can_review:
+                review = review_form.save(commit=False)
+                review.car = car
+                review.user = request.user
+                review.save()
+                return redirect('car_detail', pk=car.pk)
+        
+        # Інакше - це відправили форму бронювання
+        else:
+            form = BookingForm(request.POST)
+            if form.is_valid():
+                start = form.cleaned_data['start_date']
+                end = form.cleaned_data['end_date']
 
-            if end < start:
-                form.add_error(None, "Дата закінчення не може бути раніше початку!")
-            else:
-                is_overlap = Booking.objects.filter(
-                    car=car,
-                    start_date__lte=end,
-                    end_date__gte=start
-                ).exists()
-
-                if is_overlap:
-                    form.add_error(None, "Вибачте, на ці дати машина вже заброньована! Спробуйте інші дати.")
+                if end < start:
+                    form.add_error(None, "Дата закінчення не може бути раніше початку!")
                 else:
-                    booking = form.save(commit=False)
-                    booking.car = car
-                    booking.user = request.user
-                    booking.save()
-                    return redirect('car_list')
-    else:
-        form = BookingForm()
+                    is_overlap = Booking.objects.filter(
+                        car=car,
+                        start_date__lte=end,
+                        end_date__gte=start
+                    ).exists()
 
-    return render(request, 'cars/car_detail.html', {'car': car, 'form': form})
+                    if is_overlap:
+                        form.add_error(None, "Вибачте, на ці дати машина вже заброньована! Спробуйте інші дати.")
+                    else:
+                        booking = form.save(commit=False)
+                        booking.car = car
+                        booking.user = request.user
+                        booking.save()
+                        return redirect('car_list')
+
+    return render(request, 'cars/car_detail.html', {
+        'car': car, 
+        'form': form,
+        'review_form': review_form,
+        'reviews': reviews,
+        'can_review': can_review
+    })
 
 @login_required
 def my_bookings(request):
@@ -86,48 +118,30 @@ def signup(request):
 @login_required
 def cancel_booking(request, pk):
     booking = get_object_or_404(Booking, pk=pk, user=request.user)
-    
     if request.method == 'POST':
         booking.delete()
         return redirect('my_bookings')
-    
     return redirect('my_bookings')
 
 @login_required
 def export_bookings_csv(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="financial_report.csv"'
-    
     response.write('\ufeff'.encode('utf8'))
     writer = csv.writer(response, delimiter=';')
     writer.writerow(['Автомобіль', 'Дата початку', 'Дата завершення', 'Кількість днів', 'Ціна за добу (грн)', 'Загальна сума (грн)', 'Статус'])
-
     bookings = Booking.objects.filter(user=request.user).order_by('-created_at')
-
     for b in bookings:
         duration = (b.end_date - b.start_date).days
-        if duration <= 0:
-            duration = 1
-            
-        writer.writerow([
-            f"{b.car.brand} {b.car.model}",
-            b.start_date.strftime("%d.%m.%Y"),
-            b.end_date.strftime("%d.%m.%Y"),
-            duration,
-            b.car.price_per_day,
-            b.total_price,
-            b.status_label
-        ])
-
+        if duration <= 0: duration = 1
+        writer.writerow([f"{b.car.brand} {b.car.model}", b.start_date.strftime("%d.%m.%Y"), b.end_date.strftime("%d.%m.%Y"), duration, b.car.price_per_day, b.total_price, b.status_label])
     return response
 
 def car_suggestions(request):
     query = request.GET.get('q', '')
     if query:
         cars = Car.objects.filter(Q(brand__icontains=query) | Q(model__icontains=query))[:5]
-        results = [f"{car.brand} {car.model}" for car in cars]
-        results = list(set(results))
+        results = list(set([f"{car.brand} {car.model}" for car in cars]))
     else:
         results = []
-        
     return JsonResponse({'suggestions': results})

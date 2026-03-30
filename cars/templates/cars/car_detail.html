@@ -17,6 +17,15 @@
     <div class="col-md-5">
         <div class="card p-4 mb-4 shadow-sm border-0 bg-white">
             <h1 class="display-6 fw-bold mb-2 text-dark">{{ car.brand }} {{ car.model }}</h1>
+            
+            <div class="mb-3">
+                {% if car.average_rating > 0 %}
+                    <span class="badge bg-warning text-dark fs-6 shadow-sm">⭐ {{ car.average_rating }} / 5.0</span>
+                {% else %}
+                    <span class="badge bg-light text-muted border">Ще немає відгуків</span>
+                {% endif %}
+            </div>
+
             <div class="d-flex align-items-baseline mb-0">
                 <h3 class="text-success fw-bold mb-0">{{ car.price_per_day }} грн</h3>
                 <small class="text-muted ms-2 fs-6">/ доба</small>
@@ -60,7 +69,7 @@
     </div>
 </div>
 
-<div class="row mb-5">
+<div class="row mb-4">
     <div class="col-12">
         <div class="card shadow-sm border-0">
             <div class="card-header bg-light">
@@ -75,9 +84,143 @@
     </div>
 </div>
 
+<div class="row mb-5">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-dark fw-bold">💬 Відгуки клієнтів ({{ reviews.count }})</h5>
+            </div>
+            <div class="card-body p-4 bg-white rounded-bottom">
+                
+                {% if can_review %}
+                    <div class="bg-light p-4 rounded mb-4 border border-warning shadow-sm">
+                        <h6 class="fw-bold mb-3 text-dark">Залишити свій відгук про це авто:</h6>
+                        <form method="post">
+                            {% csrf_token %}
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold d-block mb-1">Оцінка:</label>
+                                <div id="stars-container" class="stars-picker fs-1 text-secondary">
+                                    <i class="bi bi-star cursor-pointer rating-star" data-rating="1"></i>
+                                    <i class="bi bi-star cursor-pointer rating-star" data-rating="2"></i>
+                                    <i class="bi bi-star cursor-pointer rating-star" data-rating="3"></i>
+                                    <i class="bi bi-star cursor-pointer rating-star" data-rating="4"></i>
+                                    <i class="bi bi-star cursor-pointer rating-star" data-rating="5"></i>
+                                </div>
+                                
+                                <div class="d-none">
+                                    {{ review_form.rating }}
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Коментар:</label>
+                                {{ review_form.comment }}
+                            </div>
+                            
+                            <button type="submit" class="btn btn-warning mt-2 fw-bold text-dark shadow-sm">
+                                ⭐ Опублікувати відгук
+                            </button>
+                        </form>
+                    </div>
+                {% endif %}
+
+                {% if reviews %}
+                    <div class="list-group list-group-flush">
+                        {% for review in reviews %}
+                            <div class="list-group-item px-0 py-3 border-bottom">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong class="text-dark">👤 {{ review.user.username }}</strong>
+                                    <small class="text-muted">{{ review.created_at|date:"d.m.Y H:i" }}</small>
+                                </div>
+                                <div class="text-warning mb-2 fw-bold fs-5" style="letter-spacing: 2px;">
+                                    {{ review.get_rating_display|slice:":10" }}
+                                </div>
+                                <p class="mb-0 text-secondary" style="font-style: italic;">"{{ review.comment }}"</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <p class="text-muted mb-0 fs-5">Поки що немає відгуків. Будьте першим!</p>
+                    </div>
+                {% endif %}
+                
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="text-center mb-5">
     <a href="{% url 'car_list' %}" class="btn btn-outline-secondary px-4 py-2 rounded-pill shadow-sm">
         ← Повернутися до автопарку
     </a>
 </div>
+
+<style>
+    /* Стиль для активних/вибраних зірочок (жовтий) */
+    .stars-picker .rating-star.active,
+    .stars-picker .rating-star:hover {
+        color: #ffc107 !important; /* bootstrap warning */
+    }
+    
+    /* Додаємо pointer при наведенні */
+    .cursor-pointer {
+        cursor: pointer;
+    }
+</style>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const starsContainer = document.getElementById("stars-container");
+        if (!starsContainer) return; // Якщо форми немає, нічого не робимо
+
+        const stars = starsContainer.querySelectorAll(".rating-star");
+        // Знаходимо приховане стандартне поле Django (має ID 'id_rating')
+        const hiddenDjangoSelect = document.getElementById("id_rating");
+
+        // Відстежуємо наведення миші
+        stars.forEach(star => {
+            star.addEventListener("mouseover", function() {
+                const ratingValue = this.getAttribute("data-rating");
+                highlightStars(ratingValue); // Підсвічуємо зірки до наведеної
+            });
+
+            // Відстежуємо клік
+            star.addEventListener("click", function() {
+                const ratingValue = this.getAttribute("data-rating");
+                
+                // Оновлюємо значення в прихованому полі форми Django
+                hiddenDjangoSelect.value = ratingValue;
+                
+                // Фіксуємо вибраний рейтинг (візуально)
+                starsContainer.setAttribute("data-selected-rating", ratingValue);
+                highlightStars(ratingValue); 
+            });
+        });
+
+        // Відстежуємо відведення миші з усього контейнера зірок
+        starsContainer.addEventListener("mouseout", function() {
+            // Повертаємо підсвітку до зафіксованого (клікнутого) значення
+            const selectedRating = starsContainer.getAttribute("data-selected-rating");
+            highlightStars(selectedRating || 0); // Якщо не клікнули, 0
+        });
+
+        // Функція, яка міняє класи активності зірок
+        function highlightStars(count) {
+            stars.forEach(star => {
+                const starRating = star.getAttribute("data-rating");
+                if (starRating <= count) {
+                    star.classList.add("active"); // Робимо жовтою
+                    star.classList.remove("bi-star"); // Прибираємо контурну
+                    star.classList.add("bi-star-fill"); // Додаємо заповнену
+                } else {
+                    star.classList.remove("active"); // Робимо сірою
+                    star.classList.remove("bi-star-fill"); // Прибираємо заповнену
+                    star.classList.add("bi-star"); // Додаємо контурну
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}
