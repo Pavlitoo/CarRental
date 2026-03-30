@@ -1,13 +1,14 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from .models import Car, Booking, Category, Review
-from .forms import BookingForm, ReviewForm # <-- Додали ReviewForm
-from django.db.models import Q
-from django.contrib.auth.decorators import login_required
+from .forms import BookingForm, ReviewForm
+from django.db.models import Q, Count # <-- Додали Count для аналітики
+from django.contrib.auth.decorators import login_required, user_passes_test # <-- Додали захист для адмінів
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
 from django.utils import timezone
 import csv
 from django.http import HttpResponse, JsonResponse
+from django.core.mail import send_mail
 
 def car_list(request):
     cars = Car.objects.filter(is_available=True)
@@ -39,13 +40,10 @@ def car_list(request):
 
 def car_detail(request, pk):
     car = get_object_or_404(Car, pk=pk)
-    # Отримуємо всі відгуки для цієї машини від найновіших
     reviews = car.reviews.all().order_by('-created_at')
 
-    # Логіка: чи має право користувач залишити відгук?
     can_review = False
     if request.user.is_authenticated:
-        # Перевіряємо, чи є завершені бронювання у цього користувача на це авто
         can_review = Booking.objects.filter(
             user=request.user,
             car=car,
@@ -56,7 +54,6 @@ def car_detail(request, pk):
     review_form = ReviewForm()
 
     if request.method == 'POST':
-        # Якщо в POST є 'rating', значить відправили форму відгуку
         if 'rating' in request.POST:
             review_form = ReviewForm(request.POST)
             if review_form.is_valid() and can_review:
@@ -66,7 +63,6 @@ def car_detail(request, pk):
                 review.save()
                 return redirect('car_detail', pk=car.pk)
         
-        # Інакше - це відправили форму бронювання
         else:
             form = BookingForm(request.POST)
             if form.is_valid():
@@ -89,6 +85,26 @@ def car_detail(request, pk):
                         booking.car = car
                         booking.user = request.user
                         booking.save()
+
+                        subject = f"🚗 Підтвердження бронювання: {car.brand} {car.model}"
+                        message = f"Вітаємо, {request.user.username}!\n\n" \
+                                  f"Ви успішно забронювали автомобіль у нашому сервісі CarRental.\n\n" \
+                                  f"Деталі замовлення:\n" \
+                                  f"- Автомобіль: {car.brand} {car.model}\n" \
+                                  f"- Дати: з {booking.start_date.strftime('%d.%m.%Y')} по {booking.end_date.strftime('%d.%m.%Y')}\n" \
+                                  f"- До сплати: {booking.total_price} грн\n\n" \
+                                  f"Дякуємо, що обрали нас!"
+
+                        user_email = request.user.email if request.user.email else f"{request.user.username}@testmail.com"
+
+                        send_mail(
+                            subject,
+                            message,
+                            'noreply@carrental.com',
+                            [user_email],
+                            fail_silently=False,
+                        )
+
                         return redirect('car_list')
 
     return render(request, 'cars/car_detail.html', {
@@ -145,3 +161,31 @@ def car_suggestions(request):
     else:
         results = []
     return JsonResponse({'suggestions': results})
+
+# --- НОВА ЛОГІКА ДЛЯ ДАШБОРДА ---
+# Дозволяємо доступ тільки адміністраторам (is_staff)
+@user_passes_test(lambda u: u.is_staff)
+def dashboard(request):
+    # 1. Загальна кількість авто та бронювань (запити до БД)
+    total_cars = Car.objects.count()
+    total_bookings = Booking.objects.count()
+    
+    # 2. Кількість активних бронювань (на сьогодні і майбутнє)
+    active_bookings = Booking.objects.filter(end_date__gte=timezone.now().date()).count()
+    
+    # 3. Підрахунок загального прибутку 
+    # (Використовуємо генератор Python, оскільки total_price — це @property, а не поле БД)
+    all_bookings = Booking.objects.all()
+    total_revenue = sum(b.total_price for b in all_bookings)
+    
+    # 4. Топ-5 найпопулярніших авто (Складний запит з анотацією бази даних)
+    popular_cars = Car.objects.annotate(num_bookings=Count('booking')).order_by('-num_bookings')[:5]
+
+    context = {
+        'total_cars': total_cars,
+        'total_bookings': total_bookings,
+        'active_bookings': active_bookings,
+        'total_revenue': total_revenue,
+        'popular_cars': popular_cars,
+    }
+    return render(request, 'cars/dashboard.html', context)

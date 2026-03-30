@@ -118,7 +118,20 @@ USE_TZ = True
 STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
 # Куди перекидати після успішного входу
 LOGIN_REDIRECT_URL = 'car_list'
 # Куди перекидати після виходу (на головну)
 LOGOUT_REDIRECT_URL = 'car_list'
+
+# --- РЕАЛЬНА ВІДПРАВКА EMAIL ЧЕРЕЗ GMAIL ---
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+# 🚨 УВАГА: Встав сюди свої реальні дані:
+EMAIL_HOST_USER = 'pasalugovij@gmail.com' # <-- НАПИШИ ТУТ СВОЮ ПОШТУ
+EMAIL_HOST_PASSWORD = 'xahn hdkw dqty zsis' # <-- НАПИШИ ТУТ ПАРОЛЬ ДОДАТКА (без пробілів)
+
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

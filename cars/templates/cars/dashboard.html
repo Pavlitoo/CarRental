@@ -1,0 +1,100 @@
+{% extends 'cars/base.html' %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <h2 class="fw-bold text-dark mb-0">📊 Фінансова аналітика (Dashboard)</h2>
+        <a href="{% url 'car_list' %}" class="btn btn-outline-secondary btn-sm">Повернутися на сайт</a>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <div class="col-md-3">
+            <div class="card bg-success text-white shadow h-100 border-0">
+                <div class="card-body">
+                    <h6 class="text-uppercase fw-bold text-white-50 mb-2">Загальний прибуток</h6>
+                    <h2 class="display-6 fw-bold mb-0">{{ total_revenue }} ₴</h2>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-primary text-white shadow h-100 border-0">
+                <div class="card-body">
+                    <h6 class="text-uppercase fw-bold text-white-50 mb-2">Активні оренди</h6>
+                    <h2 class="display-6 fw-bold mb-0">{{ active_bookings }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark shadow h-100 border-0">
+                <div class="card-body">
+                    <h6 class="text-uppercase fw-bold text-black-50 mb-2">Угод за весь час</h6>
+                    <h2 class="display-6 fw-bold mb-0">{{ total_bookings }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-info text-white shadow h-100 border-0">
+                <div class="card-body">
+                    <h6 class="text-uppercase fw-bold text-white-50 mb-2">Автопарк</h6>
+                    <h2 class="display-6 fw-bold mb-0">{{ total_cars }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">🏆 Топ-5 найпопулярніших автомобілів</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Марка та Модель</th>
+                                <th>Клас</th>
+                                <th>Ціна за добу</th>
+                                <th>Кількість оренд</th>
+                                <th>Рейтинг</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for car in popular_cars %}
+                            <tr>
+                                <td class="ps-4 fw-bold">{{ car.brand }} {{ car.model }}</td>
+                                <td>
+                                    {% if car.category %}
+                                        <span class="badge bg-secondary">{{ car.category.name }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-success fw-bold">{{ car.price_per_day }} грн</td>
+                                <td><span class="badge bg-primary fs-6">{{ car.num_bookings }}</span></td>
+                                <td>
+                                    {% if car.average_rating > 0 %}
+                                        ⭐ {{ car.average_rating }}
+                                    {% else %}
+                                        <small class="text-muted">Немає</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">Немає даних про оренди.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

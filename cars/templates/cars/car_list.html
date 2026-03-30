@@ -3,7 +3,15 @@
 {% block content %}
 <div class="row mt-3 mb-4">
     <div class="col-12">
-        <h2 class="fw-bold text-dark mb-4">🚗 Наш автопарк</h2>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold text-dark mb-0">🚗 Наш автопарк</h2>
+            
+            {% if user.is_staff %}
+                <a href="{% url 'dashboard' %}" class="btn btn-dark fw-bold shadow-sm">
+                    📈 Панель аналітики
+                </a>
+            {% endif %}
+        </div>
         
         <div class="card shadow-sm border-0 bg-light mb-5">
             <div class="card-body p-4">
