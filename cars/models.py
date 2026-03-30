@@ -1,7 +1,21 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+
+# --- НОВА МОДЕЛЬ: КАТЕГОРІЯ АВТО ---
+class Category(models.Model):
+    name = models.CharField(max_length=50, verbose_name="Назва категорії")
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Категорія"
+        verbose_name_plural = "Категорії"
 
 class Car(models.Model):
+    # Зв'язок ForeignKey з категорією
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Клас авто")
     brand = models.CharField(max_length=50, verbose_name="Марка")
     model = models.CharField(max_length=50, verbose_name="Модель")
     price_per_day = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Ціна за добу (грн)")
@@ -28,12 +42,36 @@ class Booking(models.Model):
 
     @property
     def total_price(self):
-        # Рахуємо різницю в днях
         duration = (self.end_date - self.start_date).days
-        # Якщо бронювання на 1 день або менше, рахуємо як 1 день
         if duration <= 0:
             duration = 1
-        return duration * self.car.price_per_day
+            
+        base_price = float(duration * self.car.price_per_day)
+        
+        if duration >= 7:
+            discount = base_price * 0.10
+        elif duration >= 3:
+            discount = base_price * 0.05
+        else:
+            discount = 0
+            
+        final_price = base_price - discount
+        return int(final_price)
+
+    @property
+    def has_discount(self):
+        duration = (self.end_date - self.start_date).days
+        return duration >= 3
+
+    @property
+    def is_past(self):
+        return self.end_date < timezone.now().date()
+
+    @property
+    def status_label(self):
+        if self.is_past:
+            return "Завершено"
+        return "Підтверджено"
 
     class Meta:
         verbose_name = "Бронювання"

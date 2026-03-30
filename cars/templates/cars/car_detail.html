@@ -1,57 +1,83 @@
 {% extends 'cars/base.html' %}
 
 {% block content %}
-<div class="row mt-4">
-    <div class="col-md-6">
+<div class="row mt-4 mb-4">
+    <div class="col-md-7 mb-4 mb-md-0">
         {% if car.image %}
-            <img src="{{ car.image.url }}" class="img-fluid rounded shadow" alt="{{ car.brand }}">
+            <div class="card shadow-sm border-0 h-100">
+                <img src="{{ car.image.url }}" class="img-fluid rounded shadow" alt="{{ car.brand }} {{ car.model }}" style="width: 100%; height: 100%; object-fit: cover;">
+            </div>
         {% else %}
-            <div class="p-5 bg-secondary text-white text-center rounded">Фото відсутнє</div>
+            <div class="p-5 bg-secondary text-white text-center rounded d-flex align-items-center justify-content-center h-100" style="min-height: 350px;">
+                <i class="bi bi-camera fs-1"></i> <span class="ms-2">Фото відсутнє</span>
+            </div>
         {% endif %}
     </div>
 
-    <div class="col-md-6">
-        <h1 class="display-5">{{ car.brand }} {{ car.model }}</h1>
-        <h3 class="text-success fw-bold mb-4">{{ car.price_per_day }} грн <small class="text-muted fs-6">/ доба</small></h3>
-        
-        <div class="card p-3 mb-4 bg-light border-0">
-            <h5 class="mb-3">Опис та комплектація:</h5>
-            <p style="white-space: pre-line;">{{ car.description }}</p>
+    <div class="col-md-5">
+        <div class="card p-4 mb-4 shadow-sm border-0 bg-white">
+            <h1 class="display-6 fw-bold mb-2 text-dark">{{ car.brand }} {{ car.model }}</h1>
+            <div class="d-flex align-items-baseline mb-0">
+                <h3 class="text-success fw-bold mb-0">{{ car.price_per_day }} грн</h3>
+                <small class="text-muted ms-2 fs-6">/ доба</small>
+            </div>
         </div>
 
-        <hr>
-
-        {% if form.non_field_errors %}
-            <div class="alert alert-danger" role="alert">
-                {% for error in form.non_field_errors %}
-                    <strong>Упс!</strong> {{ error }}
-                {% endfor %}
-            </div>
-        {% endif %}
-
-        <div class="card shadow-sm">
+        <div class="card shadow-sm border-primary">
             <div class="card-header bg-primary text-white">
-                📅 Забронювати авто
+                <h5 class="mb-0">📅 Швидке бронювання</h5>
             </div>
             <div class="card-body">
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger py-2" role="alert">
+                        {% for error in form.non_field_errors %}
+                            <small><strong>Упс!</strong> {{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
                 <form method="post">
                     {% csrf_token %}
                     <div class="row mb-3">
-                        <div class="col">
-                            <label class="form-label">З якого:</label>
+                        <div class="col-12 mb-2">
+                            <label class="form-label text-muted fw-bold mb-1">Дата початку:</label>
                             {{ form.start_date }}
                         </div>
-                        <div class="col">
-                            <label class="form-label">По яке:</label>
+                        <div class="col-12">
+                            <label class="form-label text-muted fw-bold mb-1">Дата завершення:</label>
                             {{ form.end_date }}
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-success w-100 btn-lg">Підтвердити бронювання</button>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-success btn-lg shadow-sm">
+                            💳 Підтвердити бронювання
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
-        
-        <a href="{% url 'car_list' %}" class="btn btn-link mt-3">← Повернутися до списку</a>
     </div>
+</div>
+
+<div class="row mb-5">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-light">
+                <h5 class="mb-0 text-dark fw-bold">⚙️ Технічні характеристики та комплектація</h5>
+            </div>
+            <div class="card-body p-4 bg-white rounded-bottom">
+                <p class="text-secondary mb-0" style="white-space: pre-line; line-height: 1.8;">
+                    {{ car.description }}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="text-center mb-5">
+    <a href="{% url 'car_list' %}" class="btn btn-outline-secondary px-4 py-2 rounded-pill shadow-sm">
+        ← Повернутися до автопарку
+    </a>
 </div>
 {% endblock %}

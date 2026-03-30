@@ -1,32 +1,137 @@
 {% extends 'cars/base.html' %}
 
 {% block content %}
-    <h1 class="text-center mb-4">Наш автопарк</h1>
-
-    <div class="row row-cols-1 row-cols-md-3 g-4">
-        {% for car in cars %}
-        <div class="col">
-            <div class="card h-100 shadow-sm">
-                {% if car.image %}
-                    <img src="{{ car.image.url }}" class="card-img-top" alt="{{ car.brand }}" style="height: 200px; object-fit: cover;">
-                {% else %}
-                    <div class="bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 200px;">
-                        Немає фото
+<div class="row mt-3 mb-4">
+    <div class="col-12">
+        <h2 class="fw-bold text-dark mb-4">🚗 Наш автопарк</h2>
+        
+        <div class="card shadow-sm border-0 bg-light mb-5">
+            <div class="card-body p-4">
+                <form method="get" class="row g-3 align-items-end">
+                    
+                    <div class="col-md-4 position-relative">
+                        <label for="searchInput" class="form-label text-muted fw-bold">Пошук за назвою:</label>
+                        <input type="text" class="form-control" id="searchInput" name="q" value="{{ query|default_if_none:'' }}" placeholder="Наприклад: BMW" autocomplete="off">
+                        <ul id="suggestionsList" class="list-group position-absolute w-100 shadow-lg mt-1" style="z-index: 1050; display: none;"></ul>
                     </div>
+                    
+                    <div class="col-md-3">
+                        <label for="categoryInput" class="form-label text-muted fw-bold">Клас авто:</label>
+                        <select class="form-select" id="categoryInput" name="category">
+                            <option value="">Всі класи</option>
+                            {% for cat in categories %}
+                                <option value="{{ cat.id }}" {% if selected_category == cat.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ cat.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label for="priceInput" class="form-label text-muted fw-bold">Макс. ціна (грн):</label>
+                        <input type="number" class="form-control" id="priceInput" name="max_price" value="{{ max_price|default_if_none:'' }}" placeholder="Наприклад: 2000">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100 shadow-sm fw-bold">
+                            🔍 Знайти
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-5">
+    {% for car in cars %}
+    <div class="col">
+        <div class="card h-100 shadow-sm border-0 transition-hover">
+            {% if car.image %}
+                <img src="{{ car.image.url }}" class="card-img-top" alt="{{ car.brand }} {{ car.model }}" style="height: 220px; object-fit: cover;">
+            {% else %}
+                <div class="card-img-top bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 220px;">
+                    <i class="bi bi-camera fs-1"></i> <span class="ms-2">Фото відсутнє</span>
+                </div>
+            {% endif %}
+            
+            <div class="card-body d-flex flex-column">
+                {% if car.category %}
+                    <span class="badge bg-secondary align-self-start mb-2">{{ car.category.name }}</span>
                 {% endif %}
                 
-                <div class="card-body">
-                    <h5 class="card-title">{{ car.brand }} {{ car.model }}</h5>
-                    <p class="card-text text-success fw-bold">{{ car.price_per_day }} грн <small class="text-muted">/ доба</small></p>
-                    
-                    <div class="d-grid gap-2">
-                        <a href="{% url 'car_detail' car.pk %}" class="btn btn-primary">
-                            Детальніше / Забронювати
-                        </a>
-                    </div>
+                <h4 class="card-title fw-bold text-dark mb-1">{{ car.brand }} {{ car.model }}</h4>
+                <h5 class="text-success fw-bold mb-3">{{ car.price_per_day }} грн <small class="text-muted fw-normal fs-6">/ доба</small></h5>
+                
+                <p class="card-text text-secondary mb-4" style="font-size: 0.95rem;">
+                    {{ car.description|truncatewords:15 }}
+                </p>
+                
+                <div class="mt-auto">
+                    <a href="{% url 'car_detail' car.pk %}" class="btn btn-outline-primary w-100 fw-bold">
+                        👀 Детальніше / Бронювати
+                    </a>
                 </div>
             </div>
         </div>
-        {% endfor %}
     </div>
+    {% empty %}
+    <div class="col-12 text-center py-5">
+        <h4 class="text-muted mb-3">За вашим запитом не знайдено жодного автомобіля 😔</h4>
+        <a href="{% url 'car_list' %}" class="btn btn-secondary px-4">Скинути всі фільтри</a>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+    .transition-hover {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .transition-hover:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+    }
+    .cursor-pointer { cursor: pointer; }
+    .list-group-item:hover { background-color: #f8f9fa; color: #0d6efd; }
+</style>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const searchInput = document.getElementById("searchInput");
+        const suggestionsList = document.getElementById("suggestionsList");
+
+        searchInput.addEventListener("input", function() {
+            const query = this.value.trim();
+            if (query.length > 0) {
+                fetch(`{% url 'car_suggestions' %}?q=${query}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        suggestionsList.innerHTML = ""; 
+                        if (data.suggestions.length > 0) {
+                            suggestionsList.style.display = "block"; 
+                            data.suggestions.forEach(item => {
+                                const li = document.createElement("li");
+                                li.className = "list-group-item list-group-item-action cursor-pointer fw-bold";
+                                li.textContent = item;
+                                li.onclick = function() {
+                                    searchInput.value = item; 
+                                    suggestionsList.style.display = "none"; 
+                                };
+                                suggestionsList.appendChild(li);
+                            });
+                        } else {
+                            suggestionsList.style.display = "none";
+                        }
+                    });
+            } else {
+                suggestionsList.style.display = "none";
+            }
+        });
+
+        document.addEventListener("click", function(e) {
+            if (e.target !== searchInput) {
+                suggestionsList.style.display = "none";
+            }
+        });
+    });
+</script>
 {% endblock %}
