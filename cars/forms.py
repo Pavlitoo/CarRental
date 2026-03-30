@@ -7,11 +7,11 @@ class BookingForm(forms.ModelForm):
         model = Booking
         fields = ['start_date', 'end_date']
         widgets = {
-            'start_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'end_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            # Змінили 'date' на 'datetime-local'
+            'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
+            'end_date': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
         }
 
-# --- НОВА ФОРМА ДЛЯ ВІДГУКУ ---
 class ReviewForm(forms.ModelForm):
     class Meta:
         model = Review

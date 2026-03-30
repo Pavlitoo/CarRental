@@ -1,14 +1,15 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from .models import Car, Booking, Category, Review
 from .forms import BookingForm, ReviewForm
-from django.db.models import Q, Count # <-- Додали Count для аналітики
-from django.contrib.auth.decorators import login_required, user_passes_test # <-- Додали захист для адмінів
+from django.db.models import Q, Count
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
 from django.utils import timezone
-import csv
-from django.http import HttpResponse, JsonResponse
 from django.core.mail import send_mail
+from django.http import HttpResponse, JsonResponse
+import csv
+import json # <-- ДОДАЛИ ДЛЯ ГРАФІКІВ
 
 def car_list(request):
     cars = Car.objects.filter(is_available=True)
@@ -47,7 +48,7 @@ def car_detail(request, pk):
         can_review = Booking.objects.filter(
             user=request.user,
             car=car,
-            end_date__lt=timezone.now().date()
+            end_date__lt=timezone.now()
         ).exists()
 
     form = BookingForm()
@@ -69,17 +70,17 @@ def car_detail(request, pk):
                 start = form.cleaned_data['start_date']
                 end = form.cleaned_data['end_date']
 
-                if end < start:
-                    form.add_error(None, "Дата закінчення не може бути раніше початку!")
+                if end <= start:
+                    form.add_error(None, "Час закінчення має бути пізніше часу початку!")
                 else:
                     is_overlap = Booking.objects.filter(
                         car=car,
-                        start_date__lte=end,
-                        end_date__gte=start
+                        start_date__lt=end,
+                        end_date__gt=start
                     ).exists()
 
                     if is_overlap:
-                        form.add_error(None, "Вибачте, на ці дати машина вже заброньована! Спробуйте інші дати.")
+                        form.add_error(None, "Вибачте, на цей час машина вже заброньована!")
                     else:
                         booking = form.save(commit=False)
                         booking.car = car
@@ -91,7 +92,7 @@ def car_detail(request, pk):
                                   f"Ви успішно забронювали автомобіль у нашому сервісі CarRental.\n\n" \
                                   f"Деталі замовлення:\n" \
                                   f"- Автомобіль: {car.brand} {car.model}\n" \
-                                  f"- Дати: з {booking.start_date.strftime('%d.%m.%Y')} по {booking.end_date.strftime('%d.%m.%Y')}\n" \
+                                  f"- Час оренди: з {booking.start_date.strftime('%d.%m.%Y %H:%M')} по {booking.end_date.strftime('%d.%m.%Y %H:%M')}\n" \
                                   f"- До сплати: {booking.total_price} грн\n\n" \
                                   f"Дякуємо, що обрали нас!"
 
@@ -102,7 +103,7 @@ def car_detail(request, pk):
                             message,
                             'noreply@carrental.com',
                             [user_email],
-                            fail_silently=False,
+                            fail_silently=True,
                         )
 
                         return redirect('car_list')
@@ -145,12 +146,10 @@ def export_bookings_csv(request):
     response['Content-Disposition'] = 'attachment; filename="financial_report.csv"'
     response.write('\ufeff'.encode('utf8'))
     writer = csv.writer(response, delimiter=';')
-    writer.writerow(['Автомобіль', 'Дата початку', 'Дата завершення', 'Кількість днів', 'Ціна за добу (грн)', 'Загальна сума (грн)', 'Статус'])
+    writer.writerow(['Автомобіль', 'Час початку', 'Час завершення', 'Вартість (грн)', 'Статус'])
     bookings = Booking.objects.filter(user=request.user).order_by('-created_at')
     for b in bookings:
-        duration = (b.end_date - b.start_date).days
-        if duration <= 0: duration = 1
-        writer.writerow([f"{b.car.brand} {b.car.model}", b.start_date.strftime("%d.%m.%Y"), b.end_date.strftime("%d.%m.%Y"), duration, b.car.price_per_day, b.total_price, b.status_label])
+        writer.writerow([f"{b.car.brand} {b.car.model}", b.start_date.strftime("%d.%m.%Y %H:%M"), b.end_date.strftime("%d.%m.%Y %H:%M"), b.total_price, b.status_label])
     return response
 
 def car_suggestions(request):
@@ -162,24 +161,29 @@ def car_suggestions(request):
         results = []
     return JsonResponse({'suggestions': results})
 
-# --- НОВА ЛОГІКА ДЛЯ ДАШБОРДА ---
-# Дозволяємо доступ тільки адміністраторам (is_staff)
+# --- ОНОВЛЕНИЙ ДАШБОРД (З ГРАФІКОМ І ДЕТАЛІЗАЦІЄЮ) ---
 @user_passes_test(lambda u: u.is_staff)
 def dashboard(request):
-    # 1. Загальна кількість авто та бронювань (запити до БД)
     total_cars = Car.objects.count()
-    total_bookings = Booking.objects.count()
+    all_bookings = Booking.objects.all().order_by('-created_at')
+    total_bookings = all_bookings.count()
+    active_bookings = Booking.objects.filter(end_date__gte=timezone.now()).count()
     
-    # 2. Кількість активних бронювань (на сьогодні і майбутнє)
-    active_bookings = Booking.objects.filter(end_date__gte=timezone.now().date()).count()
-    
-    # 3. Підрахунок загального прибутку 
-    # (Використовуємо генератор Python, оскільки total_price — це @property, а не поле БД)
-    all_bookings = Booking.objects.all()
     total_revenue = sum(b.total_price for b in all_bookings)
-    
-    # 4. Топ-5 найпопулярніших авто (Складний запит з анотацією бази даних)
     popular_cars = Car.objects.annotate(num_bookings=Count('booking')).order_by('-num_bookings')[:5]
+
+    # --- Збираємо дані для графіка (Прибуток по днях) ---
+    revenue_by_date = {}
+    for b in all_bookings:
+        # Беремо тільки дату створення угоди
+        date_str = b.created_at.strftime('%Y-%m-%d')
+        if date_str not in revenue_by_date:
+            revenue_by_date[date_str] = 0
+        revenue_by_date[date_str] += b.total_price
+
+    # Сортуємо дати по зростанню і беремо останні 14 днів, коли були угоди
+    sorted_dates = sorted(revenue_by_date.keys())[-14:]
+    chart_data = [revenue_by_date[date] for date in sorted_dates]
 
     context = {
         'total_cars': total_cars,
@@ -187,5 +191,8 @@ def dashboard(request):
         'active_bookings': active_bookings,
         'total_revenue': total_revenue,
         'popular_cars': popular_cars,
+        'recent_bookings': all_bookings[:15], # Останні 15 угод для детальної таблиці
+        'chart_labels': json.dumps(sorted_dates), # Передаємо дати в JS
+        'chart_data': json.dumps(chart_data),     # Передаємо суми в JS
     }
     return render(request, 'cars/dashboard.html', context)

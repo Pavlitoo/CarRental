@@ -16,15 +16,14 @@ class Car(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Клас авто")
     brand = models.CharField(max_length=50, verbose_name="Марка")
     model = models.CharField(max_length=50, verbose_name="Модель")
-    price_per_day = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Ціна за добу (грн)")
+    price_per_day = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Ціна за 24 години (грн)")
     description = models.TextField(blank=True, verbose_name="Опис")
     is_available = models.BooleanField(default=True, verbose_name="Доступна для оренди")
     image = models.ImageField(upload_to='cars_images/', blank=True, null=True, verbose_name="Фото")
 
     def __str__(self):
-        return f"{self.brand} {self.model} - {self.price_per_day} грн"
+        return f"{self.brand} {self.model} - {self.price_per_day} грн/доба"
 
-    # Вираховуємо середній рейтинг авто на основі відгуків
     @property
     def average_rating(self):
         reviews = self.reviews.all()
@@ -36,7 +35,6 @@ class Car(models.Model):
         verbose_name = "Автомобіль"
         verbose_name_plural = "Автомобілі"
 
-# --- НОВА МОДЕЛЬ: ВІДГУКИ ---
 class Review(models.Model):
     RATING_CHOICES = [
         (1, '⭐ 1 - Дуже погано'),
@@ -45,7 +43,6 @@ class Review(models.Model):
         (4, '⭐⭐⭐⭐ 4 - Добре'),
         (5, '⭐⭐⭐⭐⭐ 5 - Відмінно'),
     ]
-    # related_name='reviews' дозволяє нам легко отримувати всі відгуки машини: car.reviews.all()
     car = models.ForeignKey(Car, on_delete=models.CASCADE, related_name='reviews', verbose_name="Авто")
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Клієнт")
     rating = models.IntegerField(choices=RATING_CHOICES, verbose_name="Оцінка")
@@ -62,23 +59,35 @@ class Review(models.Model):
 class Booking(models.Model):
     car = models.ForeignKey(Car, on_delete=models.CASCADE, verbose_name="Авто")
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Клієнт")
-    start_date = models.DateField(verbose_name="Дата початку")
-    end_date = models.DateField(verbose_name="Дата кінця")
+    
+    # 🚨 ЗМІНИЛИ НА DateTimeField (Тепер є і години, і хвилини)
+    start_date = models.DateTimeField(verbose_name="Час початку")
+    end_date = models.DateTimeField(verbose_name="Час кінця")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Час створення")
 
     def __str__(self):
-        return f"{self.user} забронював {self.car} з {self.start_date} по {self.end_date}"
+        return f"{self.user} забронював {self.car} з {self.start_date.strftime('%d.%m %H:%M')} по {self.end_date.strftime('%d.%m %H:%M')}"
 
+    # 🚨 НОВИЙ АЛГОРИТМ: Рахуємо гроші похвилинно/погодинно
     @property
     def total_price(self):
-        duration = (self.end_date - self.start_date).days
-        if duration <= 0:
-            duration = 1
-        base_price = float(duration * self.car.price_per_day)
+        # Отримуємо загальну кількість секунд оренди
+        duration_seconds = (self.end_date - self.start_date).total_seconds()
         
-        if duration >= 7:
+        # Якщо орендували менше ніж на 1 хвилину, рахуємо як 1 хвилину (60 сек)
+        if duration_seconds <= 0:
+            duration_seconds = 60
+            
+        # Переводимо секунди в дробові дні (наприклад, 1.5 дня = 36 годин)
+        duration_days = duration_seconds / 86400.0
+        
+        # Рахуємо точну базову вартість (ціна за день * дробову кількість днів)
+        base_price = float(duration_days * float(self.car.price_per_day))
+        
+        # Знижки залишаємо для тих, хто бере надовго
+        if duration_days >= 7:
             discount = base_price * 0.10
-        elif duration >= 3:
+        elif duration_days >= 3:
             discount = base_price * 0.05
         else:
             discount = 0
@@ -87,11 +96,13 @@ class Booking(models.Model):
 
     @property
     def has_discount(self):
-        return (self.end_date - self.start_date).days >= 3
+        duration_seconds = (self.end_date - self.start_date).total_seconds()
+        return duration_seconds >= (3 * 86400) # Більше 3 днів у секундах
 
     @property
     def is_past(self):
-        return self.end_date < timezone.now().date()
+        # Порівнюємо з поточним часом
+        return self.end_date < timezone.now()
 
     @property
     def status_label(self):
