@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.utils.timezone import localtime
 from django.core.mail import send_mail
 from django.http import HttpResponse, JsonResponse, FileResponse
-from django.db import transaction # 🚨 ІМПОРТ ТРАНЗАКЦІЙ БАЗИ ДАНИХ
+from django.db import transaction 
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -23,7 +23,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 
-from .models import Car, Booking, Category, Review
+from .models import Car, Booking, Category, Review, PromoCode
 from .forms import BookingForm, ReviewForm
 
 def car_list(request):
@@ -73,26 +73,44 @@ def car_detail(request, pk):
                     if Booking.objects.filter(car=car, start_date__lt=end, end_date__gt=start).exists():
                         form.add_error(None, "Вибачте, на цей час машина вже заброньована!")
                     else:
-                        # 🚨 ТРАНЗАКЦІЯ: ГАРАНТУЄМО БЕЗПЕКУ СПИСАННЯ ГРОШЕЙ
                         with transaction.atomic():
                             booking = form.save(commit=False)
                             booking.car = car
                             booking.user = request.user
-                            
-                            # Отримуємо попередню вартість для розрахунку
                             booking.start_date = start
                             booking.end_date = end
+                            
                             total_cost = booking.financial_details['total']
                             
+                            # 🚨 ЛОГІКА ПРОМОКОДУ 🚨
+                            promo_text = form.cleaned_data.get('promo_code_entry')
+                            promo_discount = 0
+                            if promo_text:
+                                try:
+                                    promo = PromoCode.objects.get(code__iexact=promo_text)
+                                    if promo.is_valid():
+                                        promo_discount = int(total_cost * (promo.discount_percent / 100))
+                                        booking.promo_code = promo
+                                        booking.promo_discount_amount = promo_discount
+                                        promo.current_uses += 1
+                                        promo.save()
+                                    else:
+                                        form.add_error('promo_code_entry', "Промокод недійсний")
+                                        return render(request, 'cars/car_detail.html', {'car': car, 'form': form, 'review_form': review_form, 'reviews': reviews})
+                                except PromoCode.DoesNotExist:
+                                    form.add_error('promo_code_entry', "Код не знайдено")
+                                    return render(request, 'cars/car_detail.html', {'car': car, 'form': form, 'review_form': review_form, 'reviews': reviews})
+
+                            # 🚨 ЛОГІКА КЕШБЕКУ (після промокоду) 🚨
                             use_balance = form.cleaned_data.get('use_balance')
                             profile = request.user.profile
                             
-                            # Логіка списання балів
+                            cost_after_promo = total_cost - promo_discount
                             deducted_amount = 0
                             if use_balance and profile.loyalty_balance > 0:
-                                if profile.loyalty_balance >= total_cost:
-                                    deducted_amount = total_cost
-                                    profile.loyalty_balance -= total_cost
+                                if profile.loyalty_balance >= cost_after_promo:
+                                    deducted_amount = cost_after_promo
+                                    profile.loyalty_balance -= cost_after_promo
                                 else:
                                     deducted_amount = profile.loyalty_balance
                                     profile.loyalty_balance = 0
@@ -101,16 +119,8 @@ def car_detail(request, pk):
                             booking.paid_with_balance = deducted_amount
                             booking.save() 
 
-                        # Email logic
-                        local_start = localtime(booking.start_date)
-                        local_end = localtime(booking.end_date)
-                        message = f"Вітаємо, {request.user.username}!\n\nДеталі замовлення:\n- Автомобіль: {car.brand} {car.model}\n- Час оренди: з {local_start.strftime('%d.%m.%Y %H:%M')} по {local_end.strftime('%d.%m.%Y %H:%M')}\n- Оплачено балами: {booking.paid_with_balance} грн\n- До сплати готівкою: {booking.amount_due} грн\n\nВам також нараховано 5% кешбеку! Дякуємо, що обрали нас!"
-                        user_email = request.user.email if request.user.email else f"{request.user.username}@testmail.com"
-                        send_mail(f"🚗 Підтвердження бронювання: {car.brand} {car.model}", message, 'noreply@carrental.com', [user_email], fail_silently=True)
+                        return redirect('my_bookings')
 
-                        return redirect('car_list')
-
-    # Отримуємо баланс для відображення в HTML
     user_balance = request.user.profile.loyalty_balance if request.user.is_authenticated else 0
 
     return render(request, 'cars/car_detail.html', {
@@ -137,12 +147,14 @@ def signup(request):
 def cancel_booking(request, pk):
     booking = get_object_or_404(Booking, pk=pk, user=request.user)
     if request.method == 'POST':
-        # Якщо бронювання скасоване, треба повернути бали на баланс
         with transaction.atomic():
             if booking.paid_with_balance > 0:
                 profile = request.user.profile
                 profile.loyalty_balance += booking.paid_with_balance
                 profile.save()
+            if booking.promo_code:
+                booking.promo_code.current_uses -= 1
+                booking.promo_code.save()
             booking.delete()
         return redirect('my_bookings')
     return redirect('my_bookings')
@@ -153,10 +165,10 @@ def export_bookings_csv(request):
     response['Content-Disposition'] = 'attachment; filename="financial_report.csv"'
     response.write('\ufeff'.encode('utf8'))
     writer = csv.writer(response, delimiter=';')
-    writer.writerow(['Автомобіль', 'Час початку', 'Час завершення', 'До сплати', 'Сплачено балами', 'Статус'])
+    writer.writerow(['Автомобіль', 'Час початку', 'Час завершення', 'До сплати', 'Статус'])
     bookings = Booking.objects.filter(user=request.user).order_by('-created_at')
     for b in bookings:
-        writer.writerow([f"{b.car.brand} {b.car.model}", localtime(b.start_date).strftime("%d.%m.%Y %H:%M"), localtime(b.end_date).strftime("%d.%m.%Y %H:%M"), b.amount_due, b.paid_with_balance, b.status_label])
+        writer.writerow([f"{b.car.brand} {b.car.model}", localtime(b.start_date).strftime("%d.%m.%Y %H:%M"), localtime(b.end_date).strftime("%d.%m.%Y %H:%M"), b.amount_due, "Завершено" if b.is_past else "Активно"])
     return response
 
 def car_suggestions(request):
@@ -174,26 +186,14 @@ def dashboard(request):
     all_bookings = Booking.objects.all().order_by('-created_at')
     total_bookings = all_bookings.count()
     active_bookings = Booking.objects.filter(end_date__gte=timezone.now()).count()
-    
     total_revenue = sum(b.amount_due for b in all_bookings) 
     popular_cars = Car.objects.annotate(num_bookings=Count('booking')).order_by('-num_bookings')[:5]
-
-    revenue_by_date = {}
-    for b in all_bookings:
-        date_str = localtime(b.created_at).strftime('%Y-%m-%d')
-        if date_str not in revenue_by_date:
-            revenue_by_date[date_str] = 0
-        revenue_by_date[date_str] += b.amount_due
-
-    sorted_dates = sorted(revenue_by_date.keys())[-14:]
-    chart_data = [revenue_by_date[date] for date in sorted_dates]
-
-    context = {
-        'total_cars': total_cars, 'total_bookings': total_bookings, 'active_bookings': active_bookings,
-        'total_revenue': total_revenue, 'popular_cars': popular_cars, 'recent_bookings': all_bookings[:15],
-        'chart_labels': json.dumps(sorted_dates), 'chart_data': json.dumps(chart_data),
-    }
+    context = {'total_cars': total_cars, 'total_bookings': total_bookings, 'active_bookings': active_bookings, 'total_revenue': total_revenue, 'popular_cars': popular_cars, 'recent_bookings': all_bookings[:15]}
     return render(request, 'cars/dashboard.html', context)
+
+def terms_view(request): return render(request, 'cars/terms.html')
+def loyalty_view(request): return render(request, 'cars/loyalty.html')
+def privacy_view(request): return render(request, 'cars/privacy.html')
 
 @login_required
 def download_invoice(request, pk):
@@ -231,15 +231,22 @@ def download_invoice(request, pk):
     p.drawString(50, 710, f"Дата створення: {local_issue.strftime('%d.%m.%Y %H:%M')}")
     p.drawString(350, 730, f"Клієнт: {request.user.username}")
     p.drawString(350, 710, f"Email: {request.user.email if request.user.email else 'Не вказано'}")
+    
+    if request.user.profile.vip_status == 'Gold': p.setFillColor(colors.darkgoldenrod)
+    elif request.user.profile.vip_status == 'Silver': p.setFillColor(colors.gray)
+    else: p.setFillColor(colors.saddlebrown)
+    p.drawString(350, 690, f"VIP Статус: {request.user.profile.vip_status}")
+    p.setFillColor(colors.black)
+
     p.setLineWidth(1)
-    p.line(50, 690, 550, 690)
+    p.line(50, 675, 550, 675)
 
     p.setFont(font_bold, 14)
-    p.drawString(50, 660, "Деталі оренди:")
+    p.drawString(50, 650, "Деталі оренди:")
     p.setFont(font_regular, 12)
-    p.drawString(50, 630, f"Автомобіль: {booking.car.brand} {booking.car.model} ({booking.car.year} р.)")
-    p.drawString(50, 610, f"Отримання: {local_start.strftime('%d.%m.%Y %H:%M')}")
-    p.drawString(50, 590, f"Повернення: {local_end.strftime('%d.%m.%Y %H:%M')}")
+    p.drawString(50, 620, f"Автомобіль: {booking.car.brand} {booking.car.model}")
+    p.drawString(50, 600, f"Отримання: {local_start.strftime('%d.%m.%Y %H:%M')}")
+    p.drawString(50, 580, f"Повернення: {local_end.strftime('%d.%m.%Y %H:%M')}")
 
     p.setLineWidth(1)
     p.line(50, 550, 550, 550)
@@ -255,69 +262,41 @@ def download_invoice(request, pk):
         p.setFillColor(colors.red)
         p.drawString(70, y_pos, f"Націнка за вихідні дні (20%):")
         p.drawString(450, y_pos, f"+ {fin_details['surcharge']} ₴")
-        p.setFillColor(colors.black) 
-    else:
-        p.drawString(70, y_pos, f"Націнка за вихідні дні:")
-        p.drawString(450, y_pos, f"0 ₴")
-    y_pos -= 20
+        p.setFillColor(colors.black); y_pos -= 20
+
+    # 🚨 ЗНИЖКА ПРОМОКОДУ В PDF 🚨
+    if booking.promo_discount_amount > 0:
+        p.setFillColor(colors.blue)
+        p.drawString(70, y_pos, f"Промокод ({booking.promo_code.code}):")
+        p.drawString(450, y_pos, f"- {booking.promo_discount_amount} ₴")
+        p.setFillColor(colors.black); y_pos -= 20
 
     if booking.paid_with_balance > 0:
         p.setFillColor(colors.magenta) 
         p.drawString(70, y_pos, f"Оплачено з Кешбек-гаманця:")
         p.drawString(450, y_pos, f"- {booking.paid_with_balance} ₴")
-        p.setFillColor(colors.black)
+        p.setFillColor(colors.black); y_pos -= 20
     
     p.setLineWidth(2)
-    p.line(50, y_pos - 20, 550, y_pos - 20)
+    p.line(50, y_pos - 10, 550, y_pos - 10)
     
     p.setFont(font_bold, 18)
     p.setFillColor(colors.green) 
-    p.drawString(50, y_pos - 50, f"РАЗОМ ДО СПЛАТИ: {booking.amount_due} ₴") 
+    p.drawString(50, y_pos - 40, f"РАЗОМ ДО СПЛАТИ: {booking.amount_due} ₴") 
     p.setFillColor(colors.black)
 
-    qr_text = f"ЧЕК {invoice_num}\nАвто: {booking.car.brand} {booking.car.model}\nОплачено: {booking.amount_due} UAH\nСтатус: ДІЙСНО"
+    qr_text = f"ЧЕК {invoice_num}\nАвто: {booking.car.brand} {booking.car.model}\nОплачено: {booking.amount_due} UAH"
     qr = qrcode.QRCode(version=1, box_size=10, border=1)
-    qr.add_data(qr_text)
-    qr.make(fit=True)
+    qr.add_data(qr_text); qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white")
-    qr_buffer = io.BytesIO()
-    qr_img.save(qr_buffer, format='PNG')
-    qr_buffer.seek(0)
+    qr_buffer = io.BytesIO(); qr_img.save(qr_buffer, format='PNG'); qr_buffer.seek(0)
     p.drawImage(ImageReader(qr_buffer), 430, 150, width=100, height=100)
-    p.setFont(font_regular, 8)
-    p.drawString(440, 140, "Скануйте для перевірки")
 
-    p.saveState() 
-    p.translate(130, 200) 
-    p.rotate(18) 
-    p.setFillColor(colors.blue)
-    p.setStrokeColor(colors.blue)
-    p.setLineWidth(2)
-    p.circle(0, 0, 60) 
-    p.circle(0, 0, 55) 
-    p.setFont(font_bold, 14)
-    p.drawCentredString(0, 5, "ОПЛАЧЕНО") 
-    p.setFont(font_regular, 8)
-    p.drawCentredString(0, -15, "ТОВ «CarRental»")
-    p.drawCentredString(0, -25, "ЄДРПОУ 12345678")
-    p.restoreState() 
+    p.saveState(); p.translate(130, 200); p.rotate(18); p.setFillColor(colors.blue); p.setStrokeColor(colors.blue)
+    p.setLineWidth(2); p.circle(0, 0, 60); p.circle(0, 0, 55); p.setFont(font_bold, 14)
+    p.drawCentredString(0, 5, "ОПЛАЧЕНО"); p.setFont(font_regular, 8)
+    p.drawCentredString(0, -15, "ТОВ «CarRental»"); p.drawCentredString(0, -25, "ЄДРПОУ 12345678"); p.restoreState() 
 
-    p.setFont(font_regular, 10)
-    p.drawString(50, 100, "Дякуємо, що обрали CarRental!")
-    p.drawString(50, 85, "Цей документ згенеровано автоматично системою. Мокра печатка не вимагається.")
-
-    p.showPage()
-    p.save()
-
+    p.showPage(); p.save()
     buffer.seek(0)
     return FileResponse(buffer, as_attachment=True, filename=f'CarRental_Чек_{invoice_num}.pdf')
-
-# --- ІНФОРМАЦІЙНІ СТОРІНКИ ---
-def terms_view(request):
-    return render(request, 'cars/terms.html')
-
-def loyalty_view(request):
-    return render(request, 'cars/loyalty.html')
-
-def privacy_view(request):
-    return render(request, 'cars/privacy.html')

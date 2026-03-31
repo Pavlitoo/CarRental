@@ -14,16 +14,16 @@
             <div class="row row-cols-1 g-4">
                 {% for booking in bookings %}
                     <div class="col">
-                        <div class="card shadow-sm border-0">
-                            <div class="card-header bg-light d-flex justify-content-between align-items-center py-3">
+                        <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center py-3 border-0">
                                 <h5 class="mb-0 fw-bold text-dark">{{ booking.car.brand }} {{ booking.car.model }}</h5>
                                 {% if booking.is_past %}
-                                    <span class="badge bg-secondary fs-6">Завершено</span>
+                                    <span class="badge bg-secondary fs-6 rounded-pill">Завершено</span>
                                 {% else %}
-                                    <span class="badge bg-success fs-6">Активно</span>
+                                    <span class="badge bg-success fs-6 rounded-pill">Активно</span>
                                 {% endif %}
                             </div>
-                            <div class="card-body row align-items-center">
+                            <div class="card-body row align-items-center bg-white">
                                 <div class="col-md-3 mb-3 mb-md-0">
                                     <p class="text-muted mb-1 small text-uppercase fw-bold">Час початку:</p>
                                     <h6 class="fw-bold">{{ booking.start_date|date:"d.m.Y H:i" }}</h6>
@@ -36,26 +36,65 @@
                                 <div class="col-md-2 mb-3 mb-md-0">
                                     <p class="text-muted mb-1 small text-uppercase fw-bold">До сплати:</p>
                                     <h5 class="text-success fw-bold mb-0">{{ booking.amount_due }} ₴</h5>
-                                    {% if booking.paid_with_balance > 0 %}
-                                        <small class="text-danger fw-bold px-2 py-1 bg-danger bg-opacity-10 rounded">
-                                            Знижка: -{{ booking.paid_with_balance }} ₴
-                                        </small>
+                                    {% if booking.paid_with_balance > 0 or booking.promo_discount_amount > 0 %}
+                                        <div class="mt-1">
+                                            {% if booking.promo_discount_amount > 0 %}
+                                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-2 py-1 mb-1 d-inline-block">
+                                                Промокод: -{{ booking.promo_discount_amount }} ₴
+                                            </span><br>
+                                            {% endif %}
+                                            {% if booking.paid_with_balance > 0 %}
+                                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 py-1 d-inline-block">
+                                                Бали: -{{ booking.paid_with_balance }} ₴
+                                            </span>
+                                            {% endif %}
+                                        </div>
                                     {% endif %}
                                 </div>
                                 
                                 <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                                    <a href="{% url 'download_invoice' booking.pk %}" class="btn btn-primary btn-sm me-2 shadow-sm fw-bold">
+                                    <a href="{% url 'download_invoice' booking.pk %}" class="btn btn-primary btn-sm me-2 shadow-sm fw-bold rounded-pill px-3">
                                         📄 Завантажити PDF
                                     </a>
 
                                     {% if not booking.is_past %}
-                                        <form action="{% url 'cancel_booking' booking.pk %}" method="post" class="d-inline">
-                                            {% csrf_token %}
-                                            <button type="submit" class="btn btn-outline-danger btn-sm shadow-sm fw-bold" onclick="return confirm('Ви впевнені, що хочете скасувати це бронювання? Всі витрачені бали будуть повернуті на гаманець!');">
-                                                ❌ Скасувати
-                                            </button>
-                                        </form>
-                                    {% endif %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm shadow-sm fw-bold rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#cancelModal-{{ booking.pk }}">
+                                            ❌ Скасувати
+                                        </button>
+                                        
+                                        <div class="modal fade" id="cancelModal-{{ booking.pk }}" tabindex="-1" aria-labelledby="cancelModalLabel-{{ booking.pk }}" aria-hidden="true">
+                                            <div class="modal-dialog modal-dialog-centered">
+                                                <div class="modal-content border-0 shadow-lg rounded-4 text-start">
+                                                    <div class="modal-header bg-danger text-white border-0 rounded-top-4">
+                                                        <h5 class="modal-title fw-bold" id="cancelModalLabel-{{ booking.pk }}">
+                                                            <i class="bi bi-exclamation-triangle-fill me-2"></i>Підтвердження скасування
+                                                        </h5>
+                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрити"></button>
+                                                    </div>
+                                                    <div class="modal-body p-4 text-center">
+                                                        <i class="bi bi-trash-fill text-danger display-1 mb-3"></i>
+                                                        <h4 class="fw-bold text-dark mb-2">Ви впевнені?</h4>
+                                                        <p class="text-muted fs-6 mb-0">Ви збираєтесь скасувати бронювання автомобіля <br><strong class="text-dark">{{ booking.car.brand }} {{ booking.car.model }}</strong>.</p>
+                                                        
+                                                        {% if booking.paid_with_balance > 0 or booking.promo_discount_amount > 0 %}
+                                                        <div class="alert alert-info mt-3 mb-0 text-start border-0 shadow-sm rounded-3">
+                                                            <i class="bi bi-info-circle-fill me-2"></i><strong>Не хвилюйтесь!</strong><br> Всі використані бали кешбеку та ліміти промокоду будуть автоматично повернуті на ваш баланс.
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="modal-footer border-0 justify-content-center pb-4 pt-0">
+                                                        <button type="button" class="btn btn-light px-4 fw-bold rounded-pill text-muted border shadow-sm" data-bs-dismiss="modal">Ні, залишити</button>
+                                                        <form action="{% url 'cancel_booking' booking.pk %}" method="post" class="m-0">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-danger px-4 fw-bold rounded-pill shadow-sm">
+                                                                Так, скасувати
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -65,7 +104,7 @@
         {% else %}
             <div class="text-center py-5 bg-white shadow-sm rounded border-0">
                 <h4 class="text-muted mb-3">У вас ще немає жодного бронювання 🚗</h4>
-                <a href="{% url 'car_list' %}" class="btn btn-primary px-4 fw-bold shadow-sm">Перейти до автопарку</a>
+                <a href="{% url 'car_list' %}" class="btn btn-primary px-4 fw-bold shadow-sm rounded-pill mt-2">Перейти до автопарку</a>
             </div>
         {% endif %}
     </div>

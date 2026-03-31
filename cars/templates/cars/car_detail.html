@@ -58,6 +58,17 @@
                                 {{ form.end_date }}
                             </div>
                         </div>
+
+                        <div class="mb-3 mt-4">
+                            <label class="form-label fw-bold small text-uppercase text-muted">Маєте промокод?</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0 text-primary"><i class="bi bi-ticket-perforated"></i></span>
+                                {{ form.promo_code_entry }}
+                            </div>
+                            {% if form.promo_code_entry.errors %}
+                                <div class="text-danger small mt-1 fw-bold">{{ form.promo_code_entry.errors }}</div>
+                            {% endif %}
+                        </div>
                         
                         {% if user_balance > 0 %}
                         <div class="alert alert-success mt-4 py-3 border-0 shadow-sm mb-0">

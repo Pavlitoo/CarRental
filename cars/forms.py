@@ -2,11 +2,17 @@ from django import forms
 from .models import Booking, Review
 
 class BookingForm(forms.ModelForm):
-    # Додаємо віртуальну галочку, якої немає в БД, але вона є на сайті
     use_balance = forms.BooleanField(
         required=False, 
-        label="Використати баланс гаманця для знижки",
+        label="Списати кешбек",
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+    
+    # ПОЛЕ ДЛЯ ПРОМОКОДУ
+    promo_code_entry = forms.CharField(
+        required=False, 
+        label="Промокод", 
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Введіть код...'})
     )
 
     class Meta:
@@ -23,5 +29,5 @@ class ReviewForm(forms.ModelForm):
         fields = ['rating', 'comment']
         widgets = {
             'rating': forms.Select(attrs={'class': 'form-select'}),
-            'comment': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Напишіть ваші враження від авто...'}),
+            'comment': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }

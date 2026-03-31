@@ -2,33 +2,66 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 import datetime
-# 🚨 НОВІ ІМПОРТИ ДЛЯ СИГНАЛІВ
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-# --- НОВА МОДЕЛЬ: ПРОФІЛЬ КОРИСТУВАЧА (ВІРТУАЛЬНИЙ ГАМАНЕЦЬ) ---
+# --- МОДЕЛЬ: ПРОМОКОДИ ---
+class PromoCode(models.Model):
+    code = models.CharField(max_length=20, unique=True, verbose_name="Промокод")
+    discount_percent = models.IntegerField(default=5, verbose_name="Знижка (%)")
+    valid_until = models.DateTimeField(verbose_name="Дійсний до")
+    usage_limit = models.IntegerField(default=10, verbose_name="Ліміт використань")
+    current_uses = models.IntegerField(default=0, verbose_name="Використано разів")
+    is_active = models.BooleanField(default=True, verbose_name="Активний")
+
+    def is_valid(self):
+        return self.is_active and self.current_uses < self.usage_limit and self.valid_until > timezone.now()
+
+    def __str__(self):
+        return f"{self.code} (-{self.discount_percent}%)"
+
+    class Meta:
+        verbose_name = "Промокод"
+        verbose_name_plural = "Промокоди"
+
+# --- МОДЕЛЬ: ПРОФІЛЬ КОРИСТУВАЧА ---
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', verbose_name="Користувач")
     loyalty_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Баланс кешбеку (грн)")
+    total_spent = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="Витрачено за весь час")
+
+    @property
+    def vip_status(self):
+        if self.total_spent >= 30000: return "Gold"
+        elif self.total_spent >= 10000: return "Silver"
+        return "Bronze"
+
+    @property
+    def vip_color(self):
+        if self.vip_status == "Gold": return "warning"
+        elif self.vip_status == "Silver": return "secondary"
+        return "danger"
+
+    @property
+    def cashback_rate(self):
+        if self.vip_status == "Gold": return 0.10
+        elif self.vip_status == "Silver": return 0.07
+        return 0.05
 
     def __str__(self):
-        return f"Гаманець {self.user.username}: {self.loyalty_balance} грн"
+        return f"{self.user.username} | {self.vip_status} | Баланс: {self.loyalty_balance} грн"
 
     class Meta:
         verbose_name = "Профіль клієнта"
         verbose_name_plural = "Профілі клієнтів"
 
-# --- СИГНАЛИ: АВТОМАТИЧНЕ СТВОРЕННЯ ГАМАНЦЯ ДЛЯ НОВИХ ЮЗЕРІВ ---
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        UserProfile.objects.create(user=instance)
+    if created: UserProfile.objects.create(user=instance)
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
     instance.profile.save()
-
-# ------------------------------------------------------------------
 
 class Category(models.Model):
     name = models.CharField(max_length=50, verbose_name="Назва категорії")
@@ -46,8 +79,11 @@ class Car(models.Model):
     description = models.TextField(blank=True, verbose_name="Опис")
     is_available = models.BooleanField(default=True, verbose_name="Доступна для оренди")
     image = models.ImageField(upload_to='cars_images/', blank=True, null=True, verbose_name="Фото")
+    
+    # 🚨 НОВЕ ПОЛЕ ДЛЯ ТЕХОБСЛУГОВУВАННЯ 🚨
+    trips_since_last_service = models.IntegerField(default=0, verbose_name="Поїздок після ТО")
 
-    def __str__(self): return f"{self.brand} {self.model} ({self.year}) - {self.price_per_day} грн/доба"
+    def __str__(self): return f"{self.brand} {self.model} ({self.year})"
 
     @property
     def average_rating(self):
@@ -78,8 +114,9 @@ class Booking(models.Model):
     start_date = models.DateTimeField(verbose_name="Час початку")
     end_date = models.DateTimeField(verbose_name="Час кінця")
     
-    # 🚨 НОВЕ ПОЛЕ: Скільки оплачено балами
     paid_with_balance = models.DecimalField(max_digits=8, decimal_places=2, default=0.00, verbose_name="Оплачено балами")
+    promo_code = models.ForeignKey(PromoCode, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Промокод")
+    promo_discount_amount = models.DecimalField(max_digits=8, decimal_places=2, default=0.00, verbose_name="Знижка промокоду")
     
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Час створення")
 
@@ -92,17 +129,14 @@ class Booking(models.Model):
         if duration_seconds <= 0: return {'base': 0, 'surcharge': 0, 'total': 0, 'weekend_secs': 0}
             
         duration_days = duration_seconds / 86400.0
-        
         weekend_seconds = 0
         current_time = self.start_date
         while current_time < self.end_date:
-            if current_time.weekday() in [5, 6]: 
-                weekend_seconds += 60
+            if current_time.weekday() in [5, 6]: weekend_seconds += 60
             current_time += datetime.timedelta(seconds=60)
             
         last_chunk = int((self.end_date - self.start_date).total_seconds() % 60)
-        if last_chunk > 0 and self.end_date.weekday() in [5, 6]:
-            weekend_seconds += last_chunk
+        if last_chunk > 0 and self.end_date.weekday() in [5, 6]: weekend_seconds += last_chunk
 
         base_price_per_second = float(self.car.price_per_day) / 86400.0
         base_price = float(duration_seconds * base_price_per_second)
@@ -110,37 +144,42 @@ class Booking(models.Model):
         total_price = base_price + weekend_surcharge
         
         return {
-            'base': int(base_price),
-            'surcharge': int(weekend_surcharge),
-            'total': int(total_price),
-            'total_days': round(duration_days, 1),
-            'weekend_days': round(weekend_seconds / 86400.0, 1) if weekend_seconds > 0 else 0
+            'base': int(base_price), 'surcharge': int(weekend_surcharge), 'total': int(total_price),
+            'total_days': round(duration_days, 1), 'weekend_days': round(weekend_seconds / 86400.0, 1) if weekend_seconds > 0 else 0
         }
 
     @property
-    def total_price(self):
-        return self.financial_details['total']
-
-    # 🚨 НОВИЙ МЕТОД: Скільки РЕАЛЬНО треба доплатити після зняття балів
+    def total_price(self): return self.financial_details['total']
+    
     @property
-    def amount_due(self):
-        return self.total_price - int(self.paid_with_balance)
+    def amount_due(self): 
+        return self.total_price - int(self.paid_with_balance) - int(self.promo_discount_amount)
 
     @property
-    def is_past(self):
-        return self.end_date < timezone.now()
+    def is_past(self): return self.end_date < timezone.now()
 
     class Meta:
         verbose_name = "Бронювання"
         verbose_name_plural = "Бронювання"
 
-# --- СИГНАЛ: НАРАХУВАННЯ 5% КЕШБЕКУ ПІСЛЯ УСПІШНОГО БРОНЮВАННЯ ---
+# --- 🚨 СИГНАЛ: КЕШБЕК ТА ЛІЧИЛЬНИК ТО 🚨 ---
 @receiver(post_save, sender=Booking)
-def award_cashback(sender, instance, created, **kwargs):
-    if created: # Якщо бронювання щойно створене (а не просто оновлене)
-        # Рахуємо 5% від РЕАЛЬНО сплаченої суми (amount_due)
-        cashback_earned = int(instance.amount_due * 0.05)
+def process_loyalty_and_cashback(sender, instance, created, **kwargs):
+    if created: 
+        # 1. Логіка фінансів (Кешбек)
+        profile = instance.user.profile
+        cashback_earned = int(float(instance.amount_due) * profile.cashback_rate)
         if cashback_earned > 0:
-            profile = instance.user.profile
             profile.loyalty_balance += cashback_earned
-            profile.save()
+        profile.total_spent += instance.amount_due
+        profile.save()
+        
+        # 2. Логіка зносу авто (Техобслуговування)
+        car = instance.car
+        car.trips_since_last_service += 1
+        
+        # Якщо авто проїхало 5 разів — знімаємо його з публікації!
+        if car.trips_since_last_service >= 5:
+            car.is_available = False
+            
+        car.save()
