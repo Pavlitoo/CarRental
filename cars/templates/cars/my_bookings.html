@@ -32,9 +32,15 @@
                                     <p class="text-muted mb-1 small text-uppercase fw-bold">Час завершення:</p>
                                     <h6 class="fw-bold">{{ booking.end_date|date:"d.m.Y H:i" }}</h6>
                                 </div>
+                                
                                 <div class="col-md-2 mb-3 mb-md-0">
                                     <p class="text-muted mb-1 small text-uppercase fw-bold">До сплати:</p>
-                                    <h5 class="text-success fw-bold mb-0">{{ booking.total_price }} ₴</h5>
+                                    <h5 class="text-success fw-bold mb-0">{{ booking.amount_due }} ₴</h5>
+                                    {% if booking.paid_with_balance > 0 %}
+                                        <small class="text-danger fw-bold px-2 py-1 bg-danger bg-opacity-10 rounded">
+                                            Знижка: -{{ booking.paid_with_balance }} ₴
+                                        </small>
+                                    {% endif %}
                                 </div>
                                 
                                 <div class="col-md-4 text-md-end mt-3 mt-md-0">
@@ -45,7 +51,7 @@
                                     {% if not booking.is_past %}
                                         <form action="{% url 'cancel_booking' booking.pk %}" method="post" class="d-inline">
                                             {% csrf_token %}
-                                            <button type="submit" class="btn btn-outline-danger btn-sm shadow-sm fw-bold" onclick="return confirm('Ви впевнені, що хочете скасувати це бронювання?');">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm shadow-sm fw-bold" onclick="return confirm('Ви впевнені, що хочете скасувати це бронювання? Всі витрачені бали будуть повернуті на гаманець!');">
                                                 ❌ Скасувати
                                             </button>
                                         </form>

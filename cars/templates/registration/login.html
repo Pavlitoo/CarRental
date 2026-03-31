@@ -1,26 +1,47 @@
 {% extends 'cars/base.html' %}
 
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-4">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white text-center">
-                <h4>🔑 Вхід на сайт</h4>
-            </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    {% for field in form %}
-                        <div class="mb-3">
-                            <label class="form-label">{{ field.label }}</label>
-                            {{ field }} </div>
-                    {% endfor %}
-                    
-                    <button type="submit" class="btn btn-primary w-100">Увійти</button>
-                </form>
-            </div>
-            <div class="card-footer text-center">
-                <p class="mb-0">Немає акаунту? <a href="{% url 'signup' %}">Зареєструватися</a></p>
+<div class="container py-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                
+                <div class="card-header bg-primary text-white text-center py-4 border-0">
+                    <i class="bi bi-person-circle display-4 mb-2"></i>
+                    <h3 class="fw-bold mb-0">Вхід в систему</h3>
+                    <p class="mb-0 text-white-50 small mt-1">З поверненням до CarRental!</p>
+                </div>
+                
+                <div class="card-body p-4 p-sm-5 bg-white">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.errors %}
+                            <div class="alert alert-danger shadow-sm rounded-3 py-2 mb-4">
+                                <small class="fw-bold"><i class="bi bi-exclamation-triangle-fill me-1"></i> Неправильний логін або пароль.</small>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="form-floating mb-3">
+                            <input type="text" name="username" class="form-control rounded-3" id="floatingInput" placeholder="Логін" required autofocus>
+                            <label for="floatingInput" class="text-muted"><i class="bi bi-person me-1"></i> Ім'я користувача</label>
+                        </div>
+                        
+                        <div class="form-floating mb-4">
+                            <input type="password" name="password" class="form-control rounded-3" id="floatingPassword" placeholder="Пароль" required>
+                            <label for="floatingPassword" class="text-muted"><i class="bi bi-key me-1"></i> Пароль</label>
+                        </div>
+                        
+                        <button class="btn btn-primary btn-lg w-100 rounded-pill fw-bold shadow-sm" type="submit">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>Увійти
+                        </button>
+                    </form>
+                </div>
+                
+                <div class="card-footer bg-light text-center py-3 border-0">
+                    <p class="mb-0 text-muted">Ще немає акаунту? <a href="{% url 'signup' %}" class="text-primary fw-bold text-decoration-none">Зареєструватися</a></p>
+                </div>
+                
             </div>
         </div>
     </div>

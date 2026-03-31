@@ -16,7 +16,7 @@
 
     <div class="col-md-5">
         <div class="card p-4 mb-4 shadow-sm border-0 bg-white">
-            <h1 class="display-6 fw-bold mb-2 text-dark">{{ car.brand }} {{ car.model }}</h1>
+            <h1 class="display-6 fw-bold mb-2 text-dark">{{ car.brand }} {{ car.model }} ({{ car.year }})</h1>
             
             <div class="mb-3">
                 {% if car.average_rating > 0 %}
@@ -45,25 +45,43 @@
                     </div>
                 {% endif %}
 
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="row mb-3">
-                        <div class="col-12 mb-2">
-                            <label class="form-label text-muted fw-bold mb-1">Дата початку:</label>
-                            {{ form.start_date }}
+                {% if user.is_authenticated %}
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row mb-3">
+                            <div class="col-12 mb-2">
+                                <label class="form-label text-muted fw-bold mb-1">Дата початку:</label>
+                                {{ form.start_date }}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label text-muted fw-bold mb-1">Дата завершення:</label>
+                                {{ form.end_date }}
+                            </div>
                         </div>
-                        <div class="col-12">
-                            <label class="form-label text-muted fw-bold mb-1">Дата завершення:</label>
-                            {{ form.end_date }}
+                        
+                        {% if user_balance > 0 %}
+                        <div class="alert alert-success mt-4 py-3 border-0 shadow-sm mb-0">
+                            <div class="form-check form-switch d-flex align-items-center mb-0">
+                                {{ form.use_balance }}
+                                <label class="form-check-label fw-bold text-success ms-2" for="{{ form.use_balance.id_for_label }}" style="cursor: pointer;">
+                                    Списати кешбек (Доступно: {{ user_balance }} ₴)
+                                </label>
+                            </div>
                         </div>
+                        {% endif %}
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-success btn-lg shadow-sm">
+                                💳 Підтвердити бронювання
+                            </button>
+                        </div>
+                    </form>
+                {% else %}
+                    <div class="alert alert-warning mb-0 border-0 shadow-sm">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Щоб забронювати авто, будь ласка, <a href="{% url 'login' %}" class="alert-link">увійдіть</a> або <a href="{% url 'signup' %}" class="alert-link">зареєструйтесь</a>.
                     </div>
-                    
-                    <div class="d-grid gap-2 mt-4">
-                        <button type="submit" class="btn btn-success btn-lg shadow-sm">
-                            💳 Підтвердити бронювання
-                        </button>
-                    </div>
-                </form>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -134,7 +152,9 @@
                                     <small class="text-muted">{{ review.created_at|date:"d.m.Y H:i" }}</small>
                                 </div>
                                 <div class="text-warning mb-2 fw-bold fs-5" style="letter-spacing: 2px;">
-                                    {{ review.get_rating_display|slice:":10" }}
+                                    {% for i in "12345"|make_list %}
+                                        {% if forloop.counter <= review.rating %}★{% else %}☆{% endif %}
+                                    {% endfor %}
                                 </div>
                                 <p class="mb-0 text-secondary" style="font-style: italic;">"{{ review.comment }}"</p>
                             </div>
@@ -158,13 +178,10 @@
 </div>
 
 <style>
-    /* Стиль для активних/вибраних зірочок (жовтий) */
     .stars-picker .rating-star.active,
     .stars-picker .rating-star:hover {
-        color: #ffc107 !important; /* bootstrap warning */
+        color: #ffc107 !important; 
     }
-    
-    /* Додаємо pointer при наведенні */
     .cursor-pointer {
         cursor: pointer;
     }
@@ -173,51 +190,41 @@
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         const starsContainer = document.getElementById("stars-container");
-        if (!starsContainer) return; // Якщо форми немає, нічого не робимо
+        if (!starsContainer) return; 
 
         const stars = starsContainer.querySelectorAll(".rating-star");
-        // Знаходимо приховане стандартне поле Django (має ID 'id_rating')
         const hiddenDjangoSelect = document.getElementById("id_rating");
 
-        // Відстежуємо наведення миші
         stars.forEach(star => {
             star.addEventListener("mouseover", function() {
                 const ratingValue = this.getAttribute("data-rating");
-                highlightStars(ratingValue); // Підсвічуємо зірки до наведеної
+                highlightStars(ratingValue); 
             });
 
-            // Відстежуємо клік
             star.addEventListener("click", function() {
                 const ratingValue = this.getAttribute("data-rating");
-                
-                // Оновлюємо значення в прихованому полі форми Django
                 hiddenDjangoSelect.value = ratingValue;
-                
-                // Фіксуємо вибраний рейтинг (візуально)
                 starsContainer.setAttribute("data-selected-rating", ratingValue);
                 highlightStars(ratingValue); 
             });
         });
 
-        // Відстежуємо відведення миші з усього контейнера зірок
         starsContainer.addEventListener("mouseout", function() {
-            // Повертаємо підсвітку до зафіксованого (клікнутого) значення
             const selectedRating = starsContainer.getAttribute("data-selected-rating");
-            highlightStars(selectedRating || 0); // Якщо не клікнули, 0
+            highlightStars(selectedRating || 0); 
         });
 
-        // Функція, яка міняє класи активності зірок
         function highlightStars(count) {
             stars.forEach(star => {
                 const starRating = star.getAttribute("data-rating");
                 if (starRating <= count) {
-                    star.classList.add("active"); // Робимо жовтою
-                    star.classList.remove("bi-star"); // Прибираємо контурну
-                    star.classList.add("bi-star-fill"); // Додаємо заповнену
+                    star.classList.add("active"); 
+                    star.classList.remove("bi-star"); 
+                    star.classList.add("bi-star-fill"); 
                 } else {
-                    star.classList.remove("active"); // Робимо сірою
-                    star.classList.remove("bi-star-fill"); // Прибираємо заповнену
-                    star.classList.add("bi-star"); // Додаємо контурну
+                    star.classList.remove("active"); 
+                    star.classList.remove("bi-star-fill"); 
+                    star.classList.add("bi-star"); 
                 }
             });
         }

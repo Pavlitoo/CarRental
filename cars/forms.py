@@ -1,13 +1,18 @@
 from django import forms
 from .models import Booking, Review
-from django.utils import timezone
 
 class BookingForm(forms.ModelForm):
+    # Додаємо віртуальну галочку, якої немає в БД, але вона є на сайті
+    use_balance = forms.BooleanField(
+        required=False, 
+        label="Використати баланс гаманця для знижки",
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+
     class Meta:
         model = Booking
         fields = ['start_date', 'end_date']
         widgets = {
-            # Змінили 'date' на 'datetime-local'
             'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
             'end_date': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
         }

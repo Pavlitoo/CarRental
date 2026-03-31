@@ -1,21 +1,108 @@
 {% extends 'cars/base.html' %}
 
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-6">
-        <div class="card shadow">
-            <div class="card-header bg-success text-white text-center">
-                <h4>📝 Реєстрація нового користувача</h4>
-            </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    {{ form.as_p }}
-                    
-                    <button type="submit" class="btn btn-success w-100 mt-3">Створити акаунт</button>
-                </form>
+<div class="container py-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                
+                <div class="card-header bg-dark text-white text-center py-4 border-0">
+                    <i class="bi bi-person-plus-fill display-4 mb-2 text-success"></i>
+                    <h3 class="fw-bold mb-0">Реєстрація</h3>
+                    <p class="mb-0 text-white-50 small mt-1">Створіть акаунт та отримайте віртуальний кешбек-гаманець!</p>
+                </div>
+                
+                <div class="card-body p-4 p-sm-5 bg-white">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger shadow-sm rounded-3">
+                                {% for error in form.non_field_errors %}
+                                    <small class="fw-bold"><i class="bi bi-exclamation-triangle-fill me-1"></i> {{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        {% for field in form %}
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-dark mb-1">{{ field.label }}</label>
+                                
+                                <div class="custom-django-field">
+                                    {{ field }}
+                                </div>
+                                
+                                {% if field.errors %}
+                                    <div class="text-danger small mt-1 fw-bold">
+                                        {% for error in field.errors %}
+                                            <i class="bi bi-x-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                
+                                {% if field.help_text %}
+                                    <div class="form-text text-muted small mt-2 custom-help-text">
+                                        {{ field.help_text|safe }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                        
+                        <button class="btn btn-success btn-lg w-100 rounded-pill fw-bold shadow-sm mt-3" type="submit">
+                            ✅ Створити акаунт
+                        </button>
+                    </form>
+                </div>
+                
+                <div class="card-footer bg-light text-center py-3 border-0">
+                    <p class="mb-0 text-muted">Вже є акаунт? <a href="{% url 'login' %}" class="text-dark fw-bold text-decoration-none border-bottom border-dark pb-1">Увійти</a></p>
+                </div>
+                
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .custom-django-field input {
+        width: 100%;
+        padding: 0.8rem 1rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #212529;
+        background-color: #f8f9fa;
+        border: 1px solid #ced4da;
+        border-radius: 0.5rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    
+    .custom-django-field input:focus {
+        color: #212529;
+        background-color: #fff;
+        border-color: #198754; /* Зелений колір фокусу */
+        outline: 0;
+        box-shadow: 0 0 0 0.25rem rgba(25, 135, 84, 0.25);
+    }
+
+    /* Ховаємо страшні крапочки у списку вимог до пароля і робимо його охайним */
+    .custom-help-text ul {
+        padding-left: 0;
+        list-style-type: none;
+        margin-bottom: 0;
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 8px;
+        border-left: 4px solid #6c757d;
+    }
+    
+    .custom-help-text ul li {
+        margin-bottom: 0.25rem;
+        font-size: 0.85rem;
+    }
+    
+    .custom-help-text ul li::before {
+        content: "👉 ";
+    }
+</style>
 {% endblock %}
