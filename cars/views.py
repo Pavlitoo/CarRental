@@ -82,7 +82,6 @@ def car_detail(request, pk):
                             
                             total_cost = booking.financial_details['total']
                             
-                            # 🚨 ЛОГІКА ПРОМОКОДУ 🚨
                             promo_text = form.cleaned_data.get('promo_code_entry')
                             promo_discount = 0
                             if promo_text:
@@ -101,7 +100,6 @@ def car_detail(request, pk):
                                     form.add_error('promo_code_entry', "Код не знайдено")
                                     return render(request, 'cars/car_detail.html', {'car': car, 'form': form, 'review_form': review_form, 'reviews': reviews})
 
-                            # 🚨 ЛОГІКА КЕШБЕКУ (після промокоду) 🚨
                             use_balance = form.cleaned_data.get('use_balance')
                             profile = request.user.profile
                             
@@ -186,9 +184,33 @@ def dashboard(request):
     all_bookings = Booking.objects.all().order_by('-created_at')
     total_bookings = all_bookings.count()
     active_bookings = Booking.objects.filter(end_date__gte=timezone.now()).count()
+    
     total_revenue = sum(b.amount_due for b in all_bookings) 
+    total_discounts = sum(b.paid_with_balance + b.promo_discount_amount for b in all_bookings)
+    
     popular_cars = Car.objects.annotate(num_bookings=Count('booking')).order_by('-num_bookings')[:5]
-    context = {'total_cars': total_cars, 'total_bookings': total_bookings, 'active_bookings': active_bookings, 'total_revenue': total_revenue, 'popular_cars': popular_cars, 'recent_bookings': all_bookings[:15]}
+
+    revenue_by_date = {}
+    for b in all_bookings:
+        date_str = localtime(b.created_at).strftime('%Y-%m-%d')
+        if date_str not in revenue_by_date:
+            revenue_by_date[date_str] = 0
+        revenue_by_date[date_str] += b.amount_due
+
+    sorted_dates = sorted(revenue_by_date.keys())[-14:]
+    chart_data = [revenue_by_date[date] for date in sorted_dates]
+
+    context = {
+        'total_cars': total_cars, 
+        'total_bookings': total_bookings, 
+        'active_bookings': active_bookings,
+        'total_revenue': total_revenue, 
+        'total_discounts': total_discounts,
+        'popular_cars': popular_cars, 
+        'recent_bookings': all_bookings[:15],
+        'chart_labels': json.dumps(sorted_dates), 
+        'chart_data': json.dumps(chart_data),
+    }
     return render(request, 'cars/dashboard.html', context)
 
 def terms_view(request): return render(request, 'cars/terms.html')
@@ -264,7 +286,6 @@ def download_invoice(request, pk):
         p.drawString(450, y_pos, f"+ {fin_details['surcharge']} ₴")
         p.setFillColor(colors.black); y_pos -= 20
 
-    # 🚨 ЗНИЖКА ПРОМОКОДУ В PDF 🚨
     if booking.promo_discount_amount > 0:
         p.setFillColor(colors.blue)
         p.drawString(70, y_pos, f"Промокод ({booking.promo_code.code}):")

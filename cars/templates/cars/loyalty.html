@@ -1,21 +1,57 @@
 {% extends 'cars/base.html' %}
 {% block title %}Програма лояльності | CarRental{% endblock %}
 {% block content %}
-<div class="card border-0 shadow-sm p-4 p-md-5 mb-5 rounded-4">
-    <h1 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-wallet2 text-success me-2"></i>Програма лояльності (Кешбек)</h1>
-    <h5 class="fw-bold mt-4">Як це працює?</h5>
-    <p class="text-muted">Кожен зареєстрований користувач автоматично отримує віртуальний кешбек-гаманець. Це наша подяка за те, що ви обираєте CarRental.</p>
-    <div class="row mt-4">
-        <div class="col-md-6 mb-3">
-            <div class="p-3 bg-light rounded-3 border-start border-success border-4 h-100">
-                <h6 class="fw-bold"><i class="bi bi-plus-circle text-success me-1"></i> Накопичення балів</h6>
-                <p class="small text-muted mb-0">З кожної успішно завершеної оренди ми нараховуємо <strong>5% від фінальної суми</strong> на ваш гаманець. Кешбек нараховується автоматично після оплати бронювання.</p>
+<div class="container py-4">
+    <div class="card border-0 shadow-lg p-md-5 p-4 rounded-4 bg-white">
+        <div class="text-center mb-5">
+            <div class="display-1 text-success mb-3"><i class="bi bi-wallet2"></i></div>
+            <h1 class="fw-bold text-dark mb-3">Програма лояльності</h1>
+            <p class="text-muted fs-5 col-md-8 mx-auto">Автоматична система накопичення кешбеку та VIP-статусів для постійних клієнтів сервісу CarRental.</p>
+        </div>
+        
+        <div class="row g-4 mb-5">
+            <div class="col-md-6">
+                <div class="p-4 bg-light rounded-4 h-100 border border-success border-opacity-25 shadow-sm">
+                    <h5 class="fw-bold text-success mb-3"><i class="bi bi-piggy-bank-fill me-2"></i>Як накопичувати?</h5>
+                    <p class="text-secondary mb-0">При кожному успішному бронюванні на ваш віртуальний гаманець автоматично повертається відсоток від сплаченої суми (базовий тариф + націнки мінус промокоди). Бали нараховуються миттєво після створення чека.</p>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="p-4 bg-light rounded-4 h-100 border border-primary border-opacity-25 shadow-sm">
+                    <h5 class="fw-bold text-primary mb-3"><i class="bi bi-cart-check-fill me-2"></i>Як витрачати?</h5>
+                    <p class="text-secondary mb-0">При наступному бронюванні активуйте перемикач "Списати кешбек". Ви можете оплатити поїздку балами частково або навіть повністю. 1 бал = 1 гривня.</p>
+                </div>
             </div>
         </div>
-        <div class="col-md-6 mb-3">
-            <div class="p-3 bg-light rounded-3 border-start border-primary border-4 h-100">
-                <h6 class="fw-bold"><i class="bi bi-cart-check text-primary me-1"></i> Використання балансу</h6>
-                <p class="small text-muted mb-0">Накопичені кошти можна використовувати для оплати наступних поїздок (повністю або частково). При скасуванні бронювання використаний кешбек гарантовано повертається на рахунок.</p>
+
+        <h3 class="fw-bold text-dark mb-4 text-center border-bottom pb-3">Система VIP Статусів 👑</h3>
+        <div class="row g-4 text-center">
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm rounded-4 bg-white" style="border-top: 5px solid #dc3545 !important;">
+                    <div class="card-body p-4">
+                        <span class="badge bg-danger fs-6 mb-3 px-3 py-2 rounded-pill">Бронза (Bronze)</span>
+                        <h2 class="fw-bold mb-3">5% <span class="fs-6 text-muted fw-normal">кешбеку</span></h2>
+                        <p class="text-muted small">Стандартний статус для всіх нових клієнтів одразу після реєстрації.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm rounded-4 bg-white" style="border-top: 5px solid #6c757d !important;">
+                    <div class="card-body p-4">
+                        <span class="badge bg-secondary fs-6 mb-3 px-3 py-2 rounded-pill">Срібло (Silver)</span>
+                        <h2 class="fw-bold mb-3">7% <span class="fs-6 text-muted fw-normal">кешбеку</span></h2>
+                        <p class="text-muted small">Надається автоматично, коли загальна сума ваших витрат перевищує <strong>10 000 ₴</strong>.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm rounded-4 bg-white" style="border-top: 5px solid #ffc107 !important;">
+                    <div class="card-body p-4">
+                        <span class="badge bg-warning text-dark fs-6 mb-3 px-3 py-2 rounded-pill">Золото (Gold)</span>
+                        <h2 class="fw-bold mb-3">10% <span class="fs-6 text-muted fw-normal">кешбеку</span></h2>
+                        <p class="text-muted small">Преміум-статус для найкращих клієнтів. Витратьте понад <strong>30 000 ₴</strong> для активації.</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

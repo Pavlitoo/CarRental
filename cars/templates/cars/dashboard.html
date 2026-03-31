@@ -1,194 +1,156 @@
 {% extends 'cars/base.html' %}
 
 {% block content %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<div class="container mt-4 mb-5">
-    
-    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
-        <h2 class="fw-bold text-dark mb-0">📊 Фінансова аналітика (Dashboard)</h2>
-        <a href="{% url 'car_list' %}" class="btn btn-outline-secondary btn-sm">Повернутися на сайт</a>
-    </div>
-
-    <div class="row g-4 mb-4">
-        <div class="col-md-3">
-            <div class="card bg-success text-white shadow h-100 border-0">
-                <div class="card-body">
-                    <h6 class="text-uppercase fw-bold text-white-50 mb-2">Загальний прибуток</h6>
-                    <h2 class="display-6 fw-bold mb-0">{{ total_revenue }} ₴</h2>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-3">
-            <div class="card bg-primary text-white shadow h-100 border-0">
-                <div class="card-body">
-                    <h6 class="text-uppercase fw-bold text-white-50 mb-2">Активні оренди (Зараз)</h6>
-                    <h2 class="display-6 fw-bold mb-0">{{ active_bookings }}</h2>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark shadow h-100 border-0">
-                <div class="card-body">
-                    <h6 class="text-uppercase fw-bold text-black-50 mb-2">Угод за весь час</h6>
-                    <h2 class="display-6 fw-bold mb-0">{{ total_bookings }}</h2>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card bg-info text-white shadow h-100 border-0">
-                <div class="card-body">
-                    <h6 class="text-uppercase fw-bold text-white-50 mb-2">Автопарк</h6>
-                    <h2 class="display-6 fw-bold mb-0">{{ total_cars }}</h2>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mb-5">
-        <div class="col-lg-8 mb-4 mb-lg-0">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0 text-dark fw-bold">📈 Динаміка прибутку по днях</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="revenueChart" style="max-height: 300px;"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="mb-0">🏆 Топ-5 Авто</h5>
-                </div>
-                <div class="card-body p-0">
-                    <table class="table table-hover align-middle mb-0 text-center">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="text-start ps-3">Модель</th>
-                                <th>Угод</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for car in popular_cars %}
-                            <tr>
-                                <td class="text-start ps-3 fw-bold">{{ car.brand }} {{ car.model }}</td>
-                                <td><span class="badge bg-primary fs-6">{{ car.num_bookings }}</span></td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="2" class="text-muted py-3">Немає даних</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row">
-        <div class="col-12">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 text-dark fw-bold">📋 Деталізація: Останні транзакції</h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-secondary text-muted">
-                                <tr>
-                                    <th class="ps-4">Клієнт</th>
-                                    <th>Автомобіль</th>
-                                    <th>Час початку</th>
-                                    <th>Час завершення</th>
-                                    <th>Статус</th>
-                                    <th class="text-end pe-4">Сума (грн)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for b in recent_bookings %}
-                                <tr>
-                                    <td class="ps-4 fw-bold">👤 {{ b.user.username }}</td>
-                                    <td>{{ b.car.brand }} {{ b.car.model }}</td>
-                                    <td>{{ b.start_date|date:"d.m.Y H:i" }}</td>
-                                    <td>{{ b.end_date|date:"d.m.Y H:i" }}</td>
-                                    <td>
-                                        {% if b.is_past %}
-                                            <span class="badge bg-secondary">Завершено</span>
-                                        {% else %}
-                                            <span class="badge bg-success">Активно</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end pe-4 fw-bold text-success">+{{ b.total_price }} ₴</td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-muted">Жодної транзакції ще не проведено.</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-3 gap-3">
+    <h3 class="fw-bold mb-0 text-dark">
+        <i class="bi bi-bar-chart-fill text-warning me-2"></i>Фінансова аналітика
+    </h3>
+    <a href="{% url 'car_list' %}" class="btn btn-light text-secondary border-0 rounded-pill shadow-sm px-4 fw-semibold mt-1 mt-md-0 d-inline-flex justify-content-center align-items-center">
+        <i class="bi bi-arrow-left-short fs-5 me-1"></i> На сайт
+    </a>
 </div>
 
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100 border-0 shadow rounded-4 p-3">
+            <h6 class="text-uppercase fw-bold opacity-75 mb-1"><i class="bi bi-cash-stack me-2"></i>Загальний прибуток</h6>
+            <h2 class="fw-bold mb-0 display-6">{{ total_revenue }} ₴</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-purple text-white h-100 border-0 shadow rounded-4 p-3" style="background-color: #6f42c1;">
+            <h6 class="text-uppercase fw-bold opacity-75 mb-1"><i class="bi bi-tags-fill me-2"></i>Надано знижок</h6>
+            <h2 class="fw-bold mb-0 display-6">-{{ total_discounts }} ₴</h2>
+            <small class="opacity-75">Кешбек + Промокоди</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark h-100 border-0 shadow rounded-4 p-3">
+            <h6 class="text-uppercase fw-bold opacity-75 mb-1"><i class="bi bi-briefcase-fill me-2"></i>Угод за весь час</h6>
+            <h2 class="fw-bold mb-0 display-6">{{ total_bookings }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-dark h-100 border-0 shadow rounded-4 p-3">
+            <h6 class="text-uppercase fw-bold opacity-75 mb-1"><i class="bi bi-car-front-fill me-2"></i>Автопарк</h6>
+            <h2 class="fw-bold mb-0 display-6">{{ total_cars }} <small class="fs-6 fw-normal">авто</small></h2>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8 mb-4 mb-md-0">
+        <div class="card shadow-sm border-0 h-100 rounded-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-graph-up text-primary me-2"></i>Динаміка прибутку по днях</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="revenueChart" style="min-height: 250px;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100 rounded-4">
+            <div class="card-header bg-dark text-white border-bottom py-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-trophy-fill text-warning me-2"></i>Топ-5 Авто</h6>
+            </div>
+            <ul class="list-group list-group-flush rounded-bottom-4">
+                {% for car in popular_cars %}
+                <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                    <span class="fw-semibold">{{ car.brand }} {{ car.model }}</span>
+                    <span class="badge bg-primary rounded-pill px-3">{{ car.num_bookings }} угод</span>
+                </li>
+                {% empty %}
+                <li class="list-group-item text-muted py-3">Немає даних</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-4 mb-5">
+    <div class="card-header bg-white border-bottom py-3">
+        <h6 class="fw-bold mb-0"><i class="bi bi-card-text text-secondary me-2"></i>Деталізація: Останні транзакції</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Клієнт</th>
+                        <th>Автомобіль</th>
+                        <th>Час початку</th>
+                        <th>Час завершення</th>
+                        <th>Статус</th>
+                        <th class="text-end pe-4">Сума (грн)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for booking in recent_bookings %}
+                    <tr>
+                        <td class="ps-4 fw-semibold"><i class="bi bi-person-fill text-muted me-1"></i>{{ booking.user.username }}</td>
+                        <td>{{ booking.car.brand }} {{ booking.car.model }}</td>
+                        <td>{{ booking.start_date|date:"d.m.Y H:i" }}</td>
+                        <td>{{ booking.end_date|date:"d.m.Y H:i" }}</td>
+                        <td>
+                            {% if booking.is_past %}
+                                <span class="badge bg-secondary">Завершено</span>
+                            {% else %}
+                                <span class="badge bg-success">Активно</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4 fw-bold text-success">+{{ booking.amount_due }} ₴</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Немає жодної транзакції.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{{ chart_labels|json_script:"labels-data" }}
+{{ chart_data|json_script:"revenue-data" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        const ctx = document.getElementById('revenueChart').getContext('2d');
-        
-        // Отримуємо дані з Python (і заспокоюємо VS Code)
-        const rawLabels = JSON.parse('{{ chart_labels|escapejs }}');
-        const rawData = JSON.parse('{{ chart_data|escapejs }}');
+        // Читаємо дані так, як вимагає сучасний стандарт (VS Code тепер щасливий!)
+        var labelsArray = JSON.parse(document.getElementById('labels-data').textContent);
+        var revenueArray = JSON.parse(document.getElementById('revenue-data').textContent);
 
-        new Chart(ctx, {
-            type: 'line', // Тип: Лінійний графік (як в крипті)
+        var ctx = document.getElementById('revenueChart').getContext('2d');
+        var chart = new Chart(ctx, {
+            type: 'line',
             data: {
-                labels: rawLabels,
+                labels: labelsArray,
                 datasets: [{
-                    label: 'Прибуток за день (грн)',
-                    data: rawData,
-                    borderColor: '#198754', // Зелений колір лінії (Bootstrap success)
-                    backgroundColor: 'rgba(25, 135, 84, 0.15)', // Напівпрозора зелена заливка під лінією
-                    borderWidth: 3,
-                    pointBackgroundColor: '#198754',
+                    label: 'Прибуток (ГРН)',
+                    data: revenueArray,
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#0d6efd',
                     pointBorderColor: '#fff',
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    fill: true, // Вмикає заливку
-                    tension: 0.3 // Робить лінію трохи плавною
+                    pointBorderWidth: 2,
+                    pointRadius: 4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        display: false // Ховаємо легенду, бо лінія тільки одна
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return context.parsed.y + ' ₴'; // Додаємо значок гривні у підказку при наведенні
-                            }
-                        }
-                    }
+                    legend: { display: false }
                 },
                 scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return value + ' ₴';
-                            }
-                        }
-                    }
+                    y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
+                    x: { grid: { display: false } }
                 }
             }
         });
