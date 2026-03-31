@@ -3,18 +3,20 @@ import io
 import csv
 import json
 import qrcode
+import re
 from PIL import Image
+import pytesseract
 
 from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Q, Count
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
 from django.utils import timezone
 from django.utils.timezone import localtime
 from django.core.mail import send_mail
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.db import transaction 
+from datetime import datetime
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -23,8 +25,71 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 
-from .models import Car, Booking, Category, Review, PromoCode
-from .forms import BookingForm, ReviewForm
+from .models import Car, Booking, Category, Review, PromoCode, UserProfile
+from .forms import BookingForm, ReviewForm, CustomSignupForm, VerifyForm
+
+# ВКАЖИ ШЛЯХ ДО TESSERACT (Стандарт для Windows)
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+# 🚨 АВТОМАТИЧНА ВЕРИФІКАЦІЯ ЧЕРЕЗ ШІ (OCR) 🚨
+@login_required
+def verify_view(request):
+    profile = request.user.profile
+    if profile.is_verified:
+        return redirect('car_list')
+
+    if request.method == 'POST':
+        form = VerifyForm(request.POST, request.FILES, instance=profile)
+        if form.is_valid():
+            try:
+                # 1. Читаємо зображення прямо з пам'яті
+                image = Image.open(request.FILES['passport_photo'])
+                
+                # 2. Розпізнаємо текст (використовуємо укр та англ мови)
+                extracted_text = pytesseract.image_to_string(image, lang='ukr+eng')
+                
+                # 3. Шукаємо дати формату ДД.ММ.РРРР
+                date_pattern = r'\d{2}[\.\s]\d{2}[\.\s]\d{4}'
+                found_dates = re.findall(date_pattern, extracted_text)
+                
+                if found_dates:
+                    parsed_dates = []
+                    for d in found_dates:
+                        try:
+                            # Очищаємо пробіли та перетворюємо в об'єкт дати
+                            clean_d = d.replace(' ', '.')
+                            parsed_dates.append(datetime.strptime(clean_d, '%d.%m.%Y'))
+                        except: continue
+                    
+                    if parsed_dates:
+                        # Беремо найменшу дату на документі — це і є день народження
+                        birth_date_from_pic = min(parsed_dates)
+                        
+                        # 4. Рахуємо вік
+                        today = datetime.now()
+                        age = today.year - birth_date_from_pic.year - ((today.month, today.day) < (birth_date_from_pic.month, birth_date_from_pic.day))
+                        
+                        if age >= 18:
+                            # УСПІХ! Оновлюємо дані в профілі автоматично
+                            profile.is_verified = True
+                            profile.birth_date = birth_date_from_pic.date()
+                            profile.verification_date = timezone.now()
+                            profile.passport_photo = request.FILES['passport_photo']
+                            profile.save()
+                            return redirect('car_list')
+                        else:
+                            form.add_error(None, f"Відмова системи: Вам {age} років (розпізнана дата: {birth_date_from_pic.strftime('%d.%m.%Y')}). Оренда лише з 18 років!")
+                    else:
+                        form.add_error(None, "Не вдалося розпізнати чітку дату. Будь ласка, зробіть більш чітке фото.")
+                else:
+                    form.add_error(None, "ШІ не зміг знайти дату народження на фото. Переконайтеся, що на фото видно першу сторінку паспорта.")
+            
+            except Exception as e:
+                form.add_error(None, f"Помилка при скануванні документа. Спробуйте інший формат фото.")
+    else:
+        form = VerifyForm(instance=profile)
+        
+    return render(request, 'cars/verify.html', {'form': form})
 
 def car_list(request):
     cars = Car.objects.filter(is_available=True)
@@ -64,60 +129,65 @@ def car_detail(request, pk):
         else:
             form = BookingForm(request.POST)
             if form.is_valid():
+                # Перевірка верифікації перед бронюванням
+                if request.user.is_authenticated:
+                    if not request.user.profile.is_verified:
+                        return redirect('verify')
+                
                 start = form.cleaned_data['start_date']
                 end = form.cleaned_data['end_date']
 
                 if end <= start:
                     form.add_error(None, "Час закінчення має бути пізніше часу початку!")
-                else:
-                    if Booking.objects.filter(car=car, start_date__lt=end, end_date__gt=start).exists():
-                        form.add_error(None, "Вибачте, на цей час машина вже заброньована!")
-                    else:
-                        with transaction.atomic():
-                            booking = form.save(commit=False)
-                            booking.car = car
-                            booking.user = request.user
-                            booking.start_date = start
-                            booking.end_date = end
-                            
-                            total_cost = booking.financial_details['total']
-                            
-                            promo_text = form.cleaned_data.get('promo_code_entry')
-                            promo_discount = 0
-                            if promo_text:
-                                try:
-                                    promo = PromoCode.objects.get(code__iexact=promo_text)
-                                    if promo.is_valid():
-                                        promo_discount = int(total_cost * (promo.discount_percent / 100))
-                                        booking.promo_code = promo
-                                        booking.promo_discount_amount = promo_discount
-                                        promo.current_uses += 1
-                                        promo.save()
-                                    else:
-                                        form.add_error('promo_code_entry', "Промокод недійсний")
-                                        return render(request, 'cars/car_detail.html', {'car': car, 'form': form, 'review_form': review_form, 'reviews': reviews})
-                                except PromoCode.DoesNotExist:
-                                    form.add_error('promo_code_entry', "Код не знайдено")
-                                    return render(request, 'cars/car_detail.html', {'car': car, 'form': form, 'review_form': review_form, 'reviews': reviews})
+                elif Booking.objects.filter(car=car, start_date__lt=end, end_date__gt=start).exists():
+                    form.add_error(None, "Вибачте, на цей час машина вже заброньована!")
 
-                            use_balance = form.cleaned_data.get('use_balance')
-                            profile = request.user.profile
-                            
-                            cost_after_promo = total_cost - promo_discount
-                            deducted_amount = 0
-                            if use_balance and profile.loyalty_balance > 0:
-                                if profile.loyalty_balance >= cost_after_promo:
-                                    deducted_amount = cost_after_promo
-                                    profile.loyalty_balance -= cost_after_promo
+                if not form.errors:
+                    with transaction.atomic():
+                        booking = form.save(commit=False)
+                        booking.car = car
+                        booking.user = request.user
+                        booking.start_date = start
+                        booking.end_date = end
+                        
+                        total_cost = booking.financial_details['total']
+                        
+                        promo_text = form.cleaned_data.get('promo_code_entry')
+                        promo_discount = 0
+                        if promo_text:
+                            try:
+                                promo = PromoCode.objects.get(code__iexact=promo_text)
+                                if promo.is_valid():
+                                    promo_discount = int(total_cost * (promo.discount_percent / 100))
+                                    booking.promo_code = promo
+                                    booking.promo_discount_amount = promo_discount
+                                    promo.current_uses += 1
+                                    promo.save()
                                 else:
-                                    deducted_amount = profile.loyalty_balance
-                                    profile.loyalty_balance = 0
-                                profile.save() 
-                            
-                            booking.paid_with_balance = deducted_amount
-                            booking.save() 
+                                    form.add_error('promo_code_entry', "Промокод недійсний")
+                                    return render(request, 'cars/car_detail.html', {'car': car, 'form': form, 'review_form': review_form, 'reviews': reviews, 'can_review': can_review, 'user_balance': getattr(request.user.profile, 'loyalty_balance', 0)})
+                            except PromoCode.DoesNotExist:
+                                form.add_error('promo_code_entry', "Код не знайдено")
+                                return render(request, 'cars/car_detail.html', {'car': car, 'form': form, 'review_form': review_form, 'reviews': reviews, 'can_review': can_review, 'user_balance': getattr(request.user.profile, 'loyalty_balance', 0)})
 
-                        return redirect('my_bookings')
+                        use_balance = form.cleaned_data.get('use_balance')
+                        profile = request.user.profile
+                        
+                        cost_after_promo = total_cost - promo_discount
+                        deducted_amount = 0
+                        if use_balance and profile.loyalty_balance > 0:
+                            if profile.loyalty_balance >= cost_after_promo:
+                                deducted_amount = cost_after_promo
+                                profile.loyalty_balance -= cost_after_promo
+                            else:
+                                deducted_amount = profile.loyalty_balance
+                                profile.loyalty_balance = 0
+                            profile.save() 
+                        
+                        booking.paid_with_balance = deducted_amount
+                        booking.save() 
+
+                    return redirect('my_bookings')
 
     user_balance = request.user.profile.loyalty_balance if request.user.is_authenticated else 0
 
@@ -132,13 +202,13 @@ def my_bookings(request):
 
 def signup(request):
     if request.method == 'POST':
-        form = UserCreationForm(request.POST)
+        form = CustomSignupForm(request.POST) 
         if form.is_valid():
             user = form.save()
             login(request, user)
             return redirect('car_list')
     else:
-        form = UserCreationForm()
+        form = CustomSignupForm() 
     return render(request, 'registration/signup.html', {'form': form})
 
 @login_required
@@ -186,7 +256,7 @@ def dashboard(request):
     active_bookings = Booking.objects.filter(end_date__gte=timezone.now()).count()
     
     total_revenue = sum(b.amount_due for b in all_bookings) 
-    total_discounts = sum(b.paid_with_balance + b.promo_discount_amount for b in all_bookings)
+    total_discounts = sum(b.paid_with_balance + getattr(b, 'promo_discount_amount', 0) for b in all_bookings)
     
     popular_cars = Car.objects.annotate(num_bookings=Count('booking')).order_by('-num_bookings')[:5]
 
@@ -201,15 +271,10 @@ def dashboard(request):
     chart_data = [revenue_by_date[date] for date in sorted_dates]
 
     context = {
-        'total_cars': total_cars, 
-        'total_bookings': total_bookings, 
-        'active_bookings': active_bookings,
-        'total_revenue': total_revenue, 
-        'total_discounts': total_discounts,
-        'popular_cars': popular_cars, 
-        'recent_bookings': all_bookings[:15],
-        'chart_labels': json.dumps(sorted_dates), 
-        'chart_data': json.dumps(chart_data),
+        'total_cars': total_cars, 'total_bookings': total_bookings, 'active_bookings': active_bookings,
+        'total_revenue': total_revenue, 'total_discounts': total_discounts,
+        'popular_cars': popular_cars, 'recent_bookings': all_bookings[:15],
+        'chart_labels': json.dumps(sorted_dates), 'chart_data': json.dumps(chart_data),
     }
     return render(request, 'cars/dashboard.html', context)
 

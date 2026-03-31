@@ -1,5 +1,42 @@
 from django import forms
-from .models import Booking, Review
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
+from .models import Booking, Review, UserProfile
+
+class CustomSignupForm(UserCreationForm):
+    birth_date = forms.DateField(
+        label="Дата народження", 
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        required=True
+    )
+    driving_experience = forms.IntegerField(
+        label="Стаж водіння (років)", 
+        min_value=0, 
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Наприклад: 3'}),
+        required=True
+    )
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = UserCreationForm.Meta.fields
+
+    def save(self, commit=True):
+        user = super().save(commit=commit)
+        if commit:
+            profile = user.profile
+            profile.birth_date = self.cleaned_data['birth_date']
+            profile.driving_experience = self.cleaned_data['driving_experience']
+            profile.save()
+        return user
+
+# 🚨 ФОРМА ДЛЯ ЗАВАНТАЖЕННЯ ПАСПОРТА 🚨
+class VerifyForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ['passport_photo']
+        widgets = {
+            'passport_photo': forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*'})
+        }
 
 class BookingForm(forms.ModelForm):
     use_balance = forms.BooleanField(
@@ -7,8 +44,6 @@ class BookingForm(forms.ModelForm):
         label="Списати кешбек",
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )
-    
-    # ПОЛЕ ДЛЯ ПРОМОКОДУ
     promo_code_entry = forms.CharField(
         required=False, 
         label="Промокод", 

@@ -8,17 +8,14 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Car)
 class CarAdmin(admin.ModelAdmin):
-    # Додали колонку trips_since_last_service, щоб адмін бачив "пробіг"
     list_display = ('brand', 'model', 'year', 'category', 'price_per_day', 'is_available', 'trips_since_last_service')
     list_filter = ('is_available', 'category', 'brand', 'year')
     search_fields = ('brand', 'model')
     
-    # 🚨 РЕЄСТРУЄМО НОВУ ДІЮ ДЛЯ АДМІНА 🚨
     actions = ['perform_maintenance']
 
     @admin.action(description="🛠️ Провести ТО (Скинути лічильник поїздок та повернути в оренду)")
     def perform_maintenance(self, request, queryset):
-        # Оновлюємо всі виділені машини: обнуляємо лічильник і робимо доступними
         updated_count = queryset.update(trips_since_last_service=0, is_available=True)
         self.message_user(request, f"Успішно проведено ТО для {updated_count} автомобілів. Вони знову в каталозі!")
 
@@ -31,9 +28,11 @@ class ReviewAdmin(admin.ModelAdmin):
     list_display = ('car', 'user', 'rating', 'created_at')
     list_filter = ('rating', 'car')
 
+# 🚨 ОНОВЛЕНО: Тепер використовуємо is_verified замість documents_verified 🚨
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'loyalty_balance', 'total_spent', 'get_vip_status')
+    list_display = ('user', 'birth_date', 'driving_experience', 'is_verified', 'loyalty_balance', 'get_vip_status')
+    list_editable = ('is_verified',) # Змінили назву поля тут
     search_fields = ('user__username',)
 
     def get_vip_status(self, obj):

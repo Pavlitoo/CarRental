@@ -29,6 +29,21 @@ class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', verbose_name="Користувач")
     loyalty_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Баланс кешбеку (грн)")
     total_spent = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="Витрачено за весь час")
+    
+    # Дані для перевірки
+    birth_date = models.DateField(null=True, blank=True, verbose_name="Дата народження")
+    driving_experience = models.IntegerField(default=0, verbose_name="Стаж водіння (років)")
+    
+    # 🚨 НОВІ ПОЛЯ: АВТО-ВЕРИФІКАЦІЯ (KYC) 🚨
+    passport_photo = models.ImageField(upload_to='passports/', null=True, blank=True, verbose_name="Фото паспорта")
+    is_verified = models.BooleanField(default=False, verbose_name="Верифіковано (18+)")
+    verification_date = models.DateTimeField(null=True, blank=True, verbose_name="Дата верифікації")
+
+    @property
+    def age(self):
+        if not self.birth_date: return 0
+        today = timezone.now().date()
+        return today.year - self.birth_date.year - ((today.month, today.day) < (self.birth_date.month, self.birth_date.day))
 
     @property
     def vip_status(self):
@@ -49,7 +64,7 @@ class UserProfile(models.Model):
         return 0.05
 
     def __str__(self):
-        return f"{self.user.username} | {self.vip_status} | Баланс: {self.loyalty_balance} грн"
+        return f"{self.user.username} | Верифіковано: {self.is_verified}"
 
     class Meta:
         verbose_name = "Профіль клієнта"
@@ -80,7 +95,6 @@ class Car(models.Model):
     is_available = models.BooleanField(default=True, verbose_name="Доступна для оренди")
     image = models.ImageField(upload_to='cars_images/', blank=True, null=True, verbose_name="Фото")
     
-    # 🚨 НОВЕ ПОЛЕ ДЛЯ ТЕХОБСЛУГОВУВАННЯ 🚨
     trips_since_last_service = models.IntegerField(default=0, verbose_name="Поїздок після ТО")
 
     def __str__(self): return f"{self.brand} {self.model} ({self.year})"
@@ -162,11 +176,9 @@ class Booking(models.Model):
         verbose_name = "Бронювання"
         verbose_name_plural = "Бронювання"
 
-# --- 🚨 СИГНАЛ: КЕШБЕК ТА ЛІЧИЛЬНИК ТО 🚨 ---
 @receiver(post_save, sender=Booking)
 def process_loyalty_and_cashback(sender, instance, created, **kwargs):
     if created: 
-        # 1. Логіка фінансів (Кешбек)
         profile = instance.user.profile
         cashback_earned = int(float(instance.amount_due) * profile.cashback_rate)
         if cashback_earned > 0:
@@ -174,12 +186,8 @@ def process_loyalty_and_cashback(sender, instance, created, **kwargs):
         profile.total_spent += instance.amount_due
         profile.save()
         
-        # 2. Логіка зносу авто (Техобслуговування)
         car = instance.car
         car.trips_since_last_service += 1
-        
-        # Якщо авто проїхало 5 разів — знімаємо його з публікації!
         if car.trips_since_last_service >= 5:
             car.is_available = False
-            
         car.save()
