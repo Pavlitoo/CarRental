@@ -102,62 +102,88 @@
 
     <footer class="footer bg-dark text-light pt-5 pb-3 mt-auto shadow-lg">
         <div class="container">
-            <div class="row gy-4">
+            <div class="row gy-4 mb-4">
                 
-                <div class="col-lg-4 col-md-6">
+                <div class="col-lg-3 col-md-6">
                     <h5 class="fw-bold text-white mb-3">
                         <i class="bi bi-car-front-fill text-primary me-2"></i>CarRental
                     </h5>
-                    <p class="text-white-50 small pe-lg-4">
-                        Сучасний сервіс оренди автомобілів. Ми пропонуємо прозорі ціни, динамічне ціноутворення, автоматичний кешбек та найвищий рівень безпеки для наших клієнтів.
+                    <p class="text-white-50 small mb-4">
+                        Сучасний сервіс оренди автомобілів. Прозорі ціни, динамічне ціноутворення та автоматичний кешбек.
                     </p>
+                    
+                    <div class="p-3 bg-secondary bg-opacity-25 rounded-3 border-start border-warning border-3">
+                        <p class="small text-white-50 mb-0" style="line-height: 1.6;">
+                            <i class="bi bi-code-slash text-warning me-1"></i> Розробник проєкту: <br>
+                            <strong class="text-white fs-6">Луговий П. Р.</strong> <br>
+                            Студент групи 101-пТК <br>
+                            <span class="opacity-75" style="font-size: 0.8rem;">Національний університет «Полтавська політехніка імені Юрія Кондратюка»</span>
+                        </p>
+                    </div>
                 </div>
 
-                <div class="col-lg-2 col-md-6">
-                    <h6 class="text-uppercase fw-bold mb-3 opacity-75">Клієнтам</h6>
-                    <ul class="list-unstyled mb-0">
-                        <li class="mb-2"><a href="{% url 'car_list' %}" class="text-white-50 text-decoration-none nav-link p-0 hover-white">Автопарк</a></li>
-                        {% if not user.is_authenticated %}
-                            <li class="mb-2"><a href="{% url 'login' %}" class="text-white-50 text-decoration-none nav-link p-0 hover-white">Увійти в кабінет</a></li>
-                            <li class="mb-2"><a href="{% url 'signup' %}" class="text-white-50 text-decoration-none nav-link p-0 hover-white">Реєстрація</a></li>
-                        {% else %}
-                            <li class="mb-2"><a href="{% url 'my_bookings' %}" class="text-white-50 text-decoration-none nav-link p-0 hover-white">Мої бронювання</a></li>
-                        {% endif %}
-                    </ul>
-                </div>
-
-                <div class="col-lg-3 col-md-6">
+                <div class="col-lg-2 col-md-6 ps-lg-4">
                     <h6 class="text-uppercase fw-bold mb-3 opacity-75">Інформація</h6>
-                    <ul class="list-unstyled mb-0 text-white-50 small">
-                        <li class="mb-2"><i class="bi bi-check2-circle text-primary me-2"></i>Правила оренди</li>
-                        <li class="mb-2"><i class="bi bi-check2-circle text-primary me-2"></i>Умови програми лояльності</li>
-                        <li class="mb-2"><i class="bi bi-check2-circle text-primary me-2"></i>Політика конфіденційності</li>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2"><a href="{% url 'terms' %}" class="text-white-50 text-decoration-none nav-link p-0 hover-white"><i class="bi bi-chevron-right small me-1"></i> Правила оренди</a></li>
+                        <li class="mb-2"><a href="{% url 'loyalty' %}" class="text-white-50 text-decoration-none nav-link p-0 hover-white"><i class="bi bi-chevron-right small me-1"></i> Програма лояльності</a></li>
+                        <li class="mb-2"><a href="{% url 'privacy' %}" class="text-white-50 text-decoration-none nav-link p-0 hover-white"><i class="bi bi-chevron-right small me-1"></i> Конфіденційність</a></li>
                     </ul>
                 </div>
 
                 <div class="col-lg-3 col-md-6">
-                    <h6 class="text-uppercase fw-bold mb-3 opacity-75">Контакти</h6>
+                    <h6 class="text-uppercase fw-bold mb-3 opacity-75">Контакти закладу</h6>
                     <ul class="list-unstyled mb-0 text-white-50 small">
-                        <li class="mb-2"><i class="bi bi-geo-alt-fill text-primary me-2"></i>Київ, вул. Хрещатик, 1</li>
-                        <li class="mb-2"><i class="bi bi-telephone-fill text-primary me-2"></i>+380 (44) 123-45-67</li>
-                        <li class="mb-2"><i class="bi bi-envelope-fill text-primary me-2"></i>support@carrental.com</li>
+                        <li class="mb-3 d-flex align-items-start">
+                            <i class="bi bi-geo-alt-fill text-primary me-2 fs-5 mt-n1"></i>
+                            <span>просп. Віталія Грицаєнка, 24,<br>Полтава, Полтавська обл., 36000</span>
+                        </li>
+                        <li class="mb-3 d-flex align-items-center">
+                            <i class="bi bi-telephone-fill text-primary me-2 fs-5"></i>
+                            <span>05325 61604</span>
+                        </li>
+                        <li class="mb-3 d-flex align-items-center">
+                            <i class="bi bi-globe text-primary me-2 fs-5"></i>
+                            <a href="https://nupp.edu.ua/" target="_blank" class="text-white-50 text-decoration-none hover-white">nupp.edu.ua</a>
+                        </li>
                     </ul>
+                </div>
+
+                <div class="col-lg-4 col-md-6">
+                    <h6 class="text-uppercase fw-bold mb-3 opacity-75">Локація</h6>
+                    <div class="rounded-3 overflow-hidden shadow-sm" style="height: 160px; background-color: #333;">
+                        <iframe 
+                            width="100%" 
+                            height="100%" 
+                            style="border:0;" 
+                            loading="lazy" 
+                            allowfullscreen 
+                            src="https://maps.google.com/maps?q=Національний%20університет%20«Полтавська%20політехніка%20імені%20Юрія%20Кондратюка»&t=&z=15&ie=UTF8&iwloc=&output=embed">
+                        </iframe>
+                    </div>
                 </div>
             </div>
             
-            <hr class="border-secondary mt-4 mb-3">
+            <hr class="border-secondary mb-3">
             
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-center small text-white-50">
-                <p class="mb-2 mb-md-0">&copy; 2026 ТОВ «CarRental Україна». Всі права захищено.</p>
+                <p class="mb-2 mb-md-0">© 2026 CarRental / Полтавська політехніка. Всі права захищено.</p>
                 <div class="d-flex gap-3">
-                    <a href="#" class="text-white-50 fs-5"><i class="bi bi-telegram"></i></a>
-                    <a href="#" class="text-white-50 fs-5"><i class="bi bi-instagram"></i></a>
-                    <a href="#" class="text-white-50 fs-5"><i class="bi bi-facebook"></i></a>
+                    <a href="https://www.instagram.com/poltava_polytechnic/" target="_blank" class="text-white-50 fs-5 text-decoration-none hover-white"><i class="bi bi-instagram"></i></a>
+                    <a href="https://www.facebook.com/poltava.polytechnic.edu/?locale=uk_UA" target="_blank" class="text-white-50 fs-5 text-decoration-none hover-white"><i class="bi bi-facebook"></i></a>
+                    <a href="https://nupp.edu.ua/" target="_blank" class="text-white-50 fs-5 text-decoration-none hover-white"><i class="bi bi-link-45deg"></i></a>
                 </div>
             </div>
         </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+        .hover-white:hover {
+            color: white !important;
+            transition: color 0.2s;
+        }
+    </style>
 </body>
 </html>

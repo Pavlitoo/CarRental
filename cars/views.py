@@ -311,3 +311,13 @@ def download_invoice(request, pk):
 
     buffer.seek(0)
     return FileResponse(buffer, as_attachment=True, filename=f'CarRental_Чек_{invoice_num}.pdf')
+
+# --- ІНФОРМАЦІЙНІ СТОРІНКИ ---
+def terms_view(request):
+    return render(request, 'cars/terms.html')
+
+def loyalty_view(request):
+    return render(request, 'cars/loyalty.html')
+
+def privacy_view(request):
+    return render(request, 'cars/privacy.html')

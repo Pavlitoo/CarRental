@@ -10,5 +10,10 @@ urlpatterns = [
     path('my-bookings/export/', views.export_bookings_csv, name='export_bookings_csv'),
     path('api/suggestions/', views.car_suggestions, name='car_suggestions'),
     path('dashboard/', views.dashboard, name='dashboard'),
-    path('booking/<int:pk>/invoice/', views.download_invoice, name='download_invoice'), # <-- НОВИЙ МАРШРУТ ДЛЯ PDF
+    path('booking/<int:pk>/invoice/', views.download_invoice, name='download_invoice'),
+    
+    # НОВІ МАРШРУТИ ДЛЯ ІНФОРМАЦІЙНИХ СТОРІНОК
+    path('terms/', views.terms_view, name='terms'),
+    path('loyalty/', views.loyalty_view, name='loyalty'),
+    path('privacy/', views.privacy_view, name='privacy'),
 ]
