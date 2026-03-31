@@ -1,15 +1,29 @@
+import os
+import io
+import csv
+import json
+import qrcode
+from PIL import Image
+
 from django.shortcuts import render, get_object_or_404, redirect
-from .models import Car, Booking, Category, Review
-from .forms import BookingForm, ReviewForm
 from django.db.models import Q, Count
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
 from django.utils import timezone
+from django.utils.timezone import localtime
 from django.core.mail import send_mail
-from django.http import HttpResponse, JsonResponse
-import csv
-import json # <-- ДОДАЛИ ДЛЯ ГРАФІКІВ
+from django.http import HttpResponse, JsonResponse, FileResponse
+
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
+
+from .models import Car, Booking, Category, Review
+from .forms import BookingForm, ReviewForm
 
 def car_list(request):
     cars = Car.objects.filter(is_available=True)
@@ -87,33 +101,27 @@ def car_detail(request, pk):
                         booking.user = request.user
                         booking.save()
 
+                        # Відправка Email
                         subject = f"🚗 Підтвердження бронювання: {car.brand} {car.model}"
+                        details = booking.financial_details 
+                        
+                        local_start = localtime(booking.start_date)
+                        local_end = localtime(booking.end_date)
+                        
                         message = f"Вітаємо, {request.user.username}!\n\n" \
-                                  f"Ви успішно забронювали автомобіль у нашому сервісі CarRental.\n\n" \
                                   f"Деталі замовлення:\n" \
                                   f"- Автомобіль: {car.brand} {car.model}\n" \
-                                  f"- Час оренди: з {booking.start_date.strftime('%d.%m.%Y %H:%M')} по {booking.end_date.strftime('%d.%m.%Y %H:%M')}\n" \
-                                  f"- До сплати: {booking.total_price} грн\n\n" \
+                                  f"- Час оренди: з {local_start.strftime('%d.%m.%Y %H:%M')} по {local_end.strftime('%d.%m.%Y %H:%M')}\n" \
+                                  f"- Сума до сплати: {details['total']} грн\n\n" \
                                   f"Дякуємо, що обрали нас!"
 
                         user_email = request.user.email if request.user.email else f"{request.user.username}@testmail.com"
-
-                        send_mail(
-                            subject,
-                            message,
-                            'noreply@carrental.com',
-                            [user_email],
-                            fail_silently=True,
-                        )
+                        send_mail(subject, message, 'noreply@carrental.com', [user_email], fail_silently=True)
 
                         return redirect('car_list')
 
     return render(request, 'cars/car_detail.html', {
-        'car': car, 
-        'form': form,
-        'review_form': review_form,
-        'reviews': reviews,
-        'can_review': can_review
+        'car': car, 'form': form, 'review_form': review_form, 'reviews': reviews, 'can_review': can_review
     })
 
 @login_required
@@ -149,7 +157,15 @@ def export_bookings_csv(request):
     writer.writerow(['Автомобіль', 'Час початку', 'Час завершення', 'Вартість (грн)', 'Статус'])
     bookings = Booking.objects.filter(user=request.user).order_by('-created_at')
     for b in bookings:
-        writer.writerow([f"{b.car.brand} {b.car.model}", b.start_date.strftime("%d.%m.%Y %H:%M"), b.end_date.strftime("%d.%m.%Y %H:%M"), b.total_price, b.status_label])
+        local_start = localtime(b.start_date)
+        local_end = localtime(b.end_date)
+        writer.writerow([
+            f"{b.car.brand} {b.car.model}", 
+            local_start.strftime("%d.%m.%Y %H:%M"), 
+            local_end.strftime("%d.%m.%Y %H:%M"), 
+            b.total_price, 
+            b.status_label
+        ])
     return response
 
 def car_suggestions(request):
@@ -161,7 +177,6 @@ def car_suggestions(request):
         results = []
     return JsonResponse({'suggestions': results})
 
-# --- ОНОВЛЕНИЙ ДАШБОРД (З ГРАФІКОМ І ДЕТАЛІЗАЦІЄЮ) ---
 @user_passes_test(lambda u: u.is_staff)
 def dashboard(request):
     total_cars = Car.objects.count()
@@ -172,27 +187,151 @@ def dashboard(request):
     total_revenue = sum(b.total_price for b in all_bookings)
     popular_cars = Car.objects.annotate(num_bookings=Count('booking')).order_by('-num_bookings')[:5]
 
-    # --- Збираємо дані для графіка (Прибуток по днях) ---
     revenue_by_date = {}
     for b in all_bookings:
-        # Беремо тільки дату створення угоди
-        date_str = b.created_at.strftime('%Y-%m-%d')
+        date_str = localtime(b.created_at).strftime('%Y-%m-%d')
         if date_str not in revenue_by_date:
             revenue_by_date[date_str] = 0
         revenue_by_date[date_str] += b.total_price
 
-    # Сортуємо дати по зростанню і беремо останні 14 днів, коли були угоди
     sorted_dates = sorted(revenue_by_date.keys())[-14:]
     chart_data = [revenue_by_date[date] for date in sorted_dates]
 
     context = {
-        'total_cars': total_cars,
-        'total_bookings': total_bookings,
-        'active_bookings': active_bookings,
-        'total_revenue': total_revenue,
-        'popular_cars': popular_cars,
-        'recent_bookings': all_bookings[:15], # Останні 15 угод для детальної таблиці
-        'chart_labels': json.dumps(sorted_dates), # Передаємо дати в JS
-        'chart_data': json.dumps(chart_data),     # Передаємо суми в JS
+        'total_cars': total_cars, 'total_bookings': total_bookings, 'active_bookings': active_bookings,
+        'total_revenue': total_revenue, 'popular_cars': popular_cars, 'recent_bookings': all_bookings[:15],
+        'chart_labels': json.dumps(sorted_dates), 'chart_data': json.dumps(chart_data),
     }
     return render(request, 'cars/dashboard.html', context)
+
+# --- ПРОФЕСІЙНИЙ PDF ІНВОЙС ---
+@login_required
+def download_invoice(request, pk):
+    booking = get_object_or_404(Booking, pk=pk, user=request.user)
+    fin_details = booking.financial_details 
+
+    # РЕЄСТРАЦІЯ ШРИФТУ ДЛЯ УКРАЇНСЬКОЇ МОВИ
+    font_path = os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts', 'arial.ttf')
+    try:
+        pdfmetrics.registerFont(TTFont('Arial', font_path))
+        pdfmetrics.registerFont(TTFont('Arial-Bold', font_path.replace('arial.ttf', 'arialbd.ttf')))
+        font_regular = 'Arial'
+        font_bold = 'Arial-Bold'
+    except Exception:
+        font_regular = 'Helvetica'
+        font_bold = 'Helvetica-Bold'
+
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+
+    # ВИПРАВЛЕННЯ ЧАСУ (UTC -> Київ)
+    local_start = localtime(booking.start_date)
+    local_end = localtime(booking.end_date)
+    local_issue = localtime(timezone.now())
+
+    # --- ШАПКА ---
+    p.setFont(font_bold, 24)
+    p.drawString(50, 800, "ТОВ «CarRental Україна»")
+    
+    p.setFont(font_regular, 14)
+    p.drawString(50, 780, "ОФІЦІЙНИЙ ЕЛЕКТРОННИЙ ЧЕК")
+    
+    p.setLineWidth(2)
+    p.line(50, 765, 550, 765)
+
+    # Красивий номер
+    invoice_num = f"INV-{local_issue.year}-{booking.pk:04d}"
+    p.setFont(font_bold, 12)
+    p.drawString(50, 730, f"Квитанція №: {invoice_num}")
+    p.setFont(font_regular, 12)
+    p.drawString(50, 710, f"Дата створення: {local_issue.strftime('%d.%m.%Y %H:%M')}")
+    
+    p.drawString(350, 730, f"Клієнт: {request.user.username}")
+    p.drawString(350, 710, f"Email: {request.user.email if request.user.email else 'Не вказано'}")
+
+    p.setLineWidth(1)
+    p.line(50, 690, 550, 690)
+
+    # --- ДЕТАЛІ АВТО ---
+    p.setFont(font_bold, 14)
+    p.drawString(50, 660, "Деталі оренди:")
+    
+    p.setFont(font_regular, 12)
+    p.drawString(50, 630, f"Автомобіль: {booking.car.brand} {booking.car.model} ({booking.car.year} р.)")
+    p.drawString(50, 610, f"Отримання: {local_start.strftime('%d.%m.%Y %H:%M')}")
+    p.drawString(50, 590, f"Повернення: {local_end.strftime('%d.%m.%Y %H:%M')}")
+    p.drawString(50, 570, f"Тривалість: {fin_details['total_days']} діб (з них вихідні: {fin_details['weekend_days']})")
+
+    # --- РОЗШИФРОВКА ЦІНИ ---
+    p.setLineWidth(1)
+    p.line(50, 540, 550, 540)
+    
+    p.setFont(font_bold, 14)
+    p.drawString(50, 510, "Деталізація вартості (ГРН):")
+    
+    p.setFont(font_regular, 12)
+    p.drawString(70, 480, f"Базовий тариф:")
+    p.drawString(450, 480, f"+ {fin_details['base']} ₴")
+    
+    if fin_details['surcharge'] > 0:
+        p.setFillColor(colors.red)
+        p.drawString(70, 460, f"Націнка за вихідні дні (20%):")
+        p.drawString(450, 460, f"+ {fin_details['surcharge']} ₴")
+        p.setFillColor(colors.black) 
+    else:
+        p.drawString(70, 460, f"Націнка за вихідні дні:")
+        p.drawString(450, 460, f"0 ₴")
+        
+    p.setLineWidth(2)
+    p.line(50, 440, 550, 440)
+    
+    p.setFont(font_bold, 18)
+    p.setFillColor(colors.green) 
+    p.drawString(50, 410, f"РАЗОМ ДО СПЛАТИ: {fin_details['total']} ₴")
+    p.setFillColor(colors.black)
+
+    # --- СМАРТ QR-КОД (БЕЗ ІНТЕРНЕТУ) ---
+    qr_text = f"ЧЕК {invoice_num}\nАвто: {booking.car.brand} {booking.car.model}\nОплачено: {fin_details['total']} UAH\nСтатус: ДІЙСНО"
+    qr = qrcode.QRCode(version=1, box_size=10, border=1)
+    qr.add_data(qr_text)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    
+    qr_buffer = io.BytesIO()
+    qr_img.save(qr_buffer, format='PNG')
+    qr_buffer.seek(0)
+    qr_reader = ImageReader(qr_buffer)
+    p.drawImage(qr_reader, 430, 150, width=100, height=100)
+    p.setFont(font_regular, 8)
+    p.drawString(440, 140, "Скануйте для перевірки")
+
+    # --- РЕАЛІСТИЧНА ПЕЧАТКА ---
+    p.saveState() 
+    p.translate(130, 200) 
+    p.rotate(18) 
+
+    p.setFillColor(colors.blue)
+    p.setStrokeColor(colors.blue)
+    p.setLineWidth(2)
+    p.circle(0, 0, 60) 
+    p.circle(0, 0, 55) 
+    
+    p.setFont(font_bold, 14)
+    p.drawCentredString(0, 5, "ОПЛАЧЕНО") 
+    
+    p.setFont(font_regular, 8)
+    p.drawCentredString(0, -15, "ТОВ «CarRental»")
+    p.drawCentredString(0, -25, "ЄДРПОУ 12345678")
+    
+    p.restoreState() 
+
+    # --- ФУТЕР ---
+    p.setFont(font_regular, 10)
+    p.drawString(50, 100, "Дякуємо, що обрали CarRental!")
+    p.drawString(50, 85, "Цей документ згенеровано автоматично системою. Мокра печатка не вимагається.")
+
+    p.showPage()
+    p.save()
+
+    buffer.seek(0)
+    return FileResponse(buffer, as_attachment=True, filename=f'CarRental_Чек_{invoice_num}.pdf')

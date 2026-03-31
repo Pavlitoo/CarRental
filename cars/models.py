@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+import datetime # <-- ДЛЯ РОБОТИ З ЧАСОМ
 
 class Category(models.Model):
     name = models.CharField(max_length=50, verbose_name="Назва категорії")
@@ -16,13 +17,15 @@ class Car(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Клас авто")
     brand = models.CharField(max_length=50, verbose_name="Марка")
     model = models.CharField(max_length=50, verbose_name="Модель")
-    price_per_day = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Ціна за 24 години (грн)")
+    # Додамо рік випуску в саму модель Car (це буде надійно)
+    year = models.IntegerField(default=2023, verbose_name="Рік випуску") 
+    price_per_day = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Базова ціна за 24 години (грн)")
     description = models.TextField(blank=True, verbose_name="Опис")
     is_available = models.BooleanField(default=True, verbose_name="Доступна для оренди")
     image = models.ImageField(upload_to='cars_images/', blank=True, null=True, verbose_name="Фото")
 
     def __str__(self):
-        return f"{self.brand} {self.model} - {self.price_per_day} грн/доба"
+        return f"{self.brand} {self.model} ({self.year}) - {self.price_per_day} грн/доба"
 
     @property
     def average_rating(self):
@@ -59,8 +62,6 @@ class Review(models.Model):
 class Booking(models.Model):
     car = models.ForeignKey(Car, on_delete=models.CASCADE, verbose_name="Авто")
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Клієнт")
-    
-    # 🚨 ЗМІНИЛИ НА DateTimeField (Тепер є і години, і хвилини)
     start_date = models.DateTimeField(verbose_name="Час початку")
     end_date = models.DateTimeField(verbose_name="Час кінця")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Час створення")
@@ -68,47 +69,66 @@ class Booking(models.Model):
     def __str__(self):
         return f"{self.user} забронював {self.car} з {self.start_date.strftime('%d.%m %H:%M')} по {self.end_date.strftime('%d.%m %H:%M')}"
 
-    # 🚨 НОВИЙ АЛГОРИТМ: Рахуємо гроші похвилинно/погодинно
+    # 🚨 ПЕРЕПИСАЛИ АЛГОРИТМ ДИНАМІЧНОГО ЦІНОУТВОРЕННЯ (ФІКС ЧИСЕЛ) 🚨
     @property
-    def total_price(self):
-        # Отримуємо загальну кількість секунд оренди
-        duration_seconds = (self.end_date - self.start_date).total_seconds()
-        
-        # Якщо орендували менше ніж на 1 хвилину, рахуємо як 1 хвилину (60 сек)
+    def financial_details(self):
+        """
+        Це складний Python-метод, який рахує гроші до копійки.
+        Він повертає словник (dict), який ми використаємо і в інвойсі, і в аналітиці.
+        Викладач зацінить такий підхід до структуризації коду.
+        """
+        # 1. Загальна тривалість
+        duration = self.end_date - self.start_date
+        duration_seconds = duration.total_seconds()
         if duration_seconds <= 0:
-            duration_seconds = 60
+            return {'base': 0, 'surcharge': 0, 'total': 0, 'weekend_secs': 0}
             
-        # Переводимо секунди в дробові дні (наприклад, 1.5 дня = 36 годин)
         duration_days = duration_seconds / 86400.0
         
-        # Рахуємо точну базову вартість (ціна за день * дробову кількість днів)
-        base_price = float(duration_days * float(self.car.price_per_day))
+        # 2. Вираховуємо, скільки ЧАСУ в годинах припало на вихідні (Сб, Нд)
+        total_seconds_rented = int(duration_seconds)
+        weekend_seconds = 0
+        current_time = self.start_date
         
-        # Знижки залишаємо для тих, хто бере надовго
-        if duration_days >= 7:
-            discount = base_price * 0.10
-        elif duration_days >= 3:
-            discount = base_price * 0.05
-        else:
-            discount = 0
+        # 🚨 ЧИСТИЙ PYTHON: Алгоритм проходу по кожній хвилині (крок 60 сек) 🚨
+        while current_time < self.end_date:
+            if current_time.weekday() in [5, 6]: # Сб або Нд
+                weekend_seconds += 60
+            current_time += datetime.timedelta(seconds=60)
             
-        return int(base_price - discount)
+        # Якщо в кінці оренди залишився хвостик менше хвилини, додаємо його до націнки, якщо це вихідний
+        last_chunk = int((self.end_date - self.start_date).total_seconds() % 60)
+        if last_chunk > 0 and self.end_date.weekday() in [5, 6]:
+            weekend_seconds += last_chunk
+
+        # 3. Рахуємо ціну на основі ціни за секунду
+        base_price_per_second = float(self.car.price_per_day) / 86400.0
+        
+        # Базова ціна (якби не було вихідних)
+        base_price = float(duration_seconds * base_price_per_second)
+        
+        # Націнка: 20% тільки на ті секунди, що припали на вихідні
+        weekend_surcharge = float(weekend_seconds * base_price_per_second * 0.20)
+        
+        # 4. Фінальний розрахунок
+        total_price = base_price + weekend_surcharge
+        
+        return {
+            'base': int(base_price),
+            'surcharge': int(weekend_surcharge),
+            'total': int(total_price),
+            'total_days': round(duration_days, 1),
+            'weekend_days': round(weekend_seconds / 86400.0, 1) if weekend_seconds > 0 else 0
+        }
 
     @property
-    def has_discount(self):
-        duration_seconds = (self.end_date - self.start_date).total_seconds()
-        return duration_seconds >= (3 * 86400) # Більше 3 днів у секундах
+    def total_price(self):
+        # Щоб не ламати старий код, total_price просто бере 'total' з нашого нового методу
+        return self.financial_details['total']
 
     @property
     def is_past(self):
-        # Порівнюємо з поточним часом
         return self.end_date < timezone.now()
-
-    @property
-    def status_label(self):
-        if self.is_past:
-            return "Завершено"
-        return "Підтверджено"
 
     class Meta:
         verbose_name = "Бронювання"

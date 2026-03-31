@@ -8,15 +8,16 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Car)
 class CarAdmin(admin.ModelAdmin):
-    list_display = ('brand', 'model', 'category', 'price_per_day', 'is_available')
-    list_filter = ('is_available', 'category', 'brand')
+    # Додали 'year' в список колонок
+    list_display = ('brand', 'model', 'year', 'category', 'price_per_day', 'is_available')
+    # Додали 'year' у фільтри
+    list_filter = ('is_available', 'category', 'brand', 'year')
     search_fields = ('brand', 'model')
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
     list_display = ('car', 'user', 'start_date', 'end_date', 'created_at')
 
-# --- РЕЄСТРАЦІЯ ВІДГУКІВ ---
 @admin.register(Review)
 class ReviewAdmin(admin.ModelAdmin):
     list_display = ('car', 'user', 'rating', 'created_at')

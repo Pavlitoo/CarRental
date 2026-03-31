@@ -9,5 +9,6 @@ urlpatterns = [
     path('booking/<int:pk>/cancel/', views.cancel_booking, name='cancel_booking'),
     path('my-bookings/export/', views.export_bookings_csv, name='export_bookings_csv'),
     path('api/suggestions/', views.car_suggestions, name='car_suggestions'),
-    path('dashboard/', views.dashboard, name='dashboard'), # <-- НОВИЙ МАРШРУТ
+    path('dashboard/', views.dashboard, name='dashboard'),
+    path('booking/<int:pk>/invoice/', views.download_invoice, name='download_invoice'), # <-- НОВИЙ МАРШРУТ ДЛЯ PDF
 ]

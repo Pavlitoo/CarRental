@@ -1,81 +1,67 @@
 {% extends 'cars/base.html' %}
 
 {% block content %}
-<div class="card shadow">
-    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-        <h3 class="mb-0">📂 Мої бронювання</h3>
-        {% if bookings %}
-            <a href="{% url 'export_bookings_csv' %}" class="btn btn-success btn-sm shadow-sm">
-                📊 Завантажити звіт (Excel/CSV)
+<div class="row mt-4 mb-5">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold text-dark mb-0">🗂️ Мої бронювання</h2>
+            <a href="{% url 'export_bookings_csv' %}" class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-excel"></i> Експорт у CSV
             </a>
-        {% endif %}
-    </div>
-    <div class="card-body">
+        </div>
 
         {% if bookings %}
-        <table class="table table-hover align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>Авто</th>
-                    <th>Дати</th>
-                    <th>Вартість</th>
-                    <th>Створено</th>
-                    <th>Статус</th>
-                    <th>Дії</th>
-                </tr>
-            </thead>
-            <tbody>
+            <div class="row row-cols-1 g-4">
                 {% for booking in bookings %}
-                <tr>
-                    <td>
-                        <strong>{{ booking.car.brand }} {{ booking.car.model }}</strong>
-                    </td>
-                    <td>
-                        {{ booking.start_date|date:"d.m.Y" }} — {{ booking.end_date|date:"d.m.Y" }}
-                    </td>
-                    <td>
-                        {% if booking.has_discount %}
-                            <span class="badge bg-warning text-dark mb-1">Знижка застосована!</span><br>
-                        {% endif %}
-                        <div class="fw-bold text-success fs-5">{{ booking.total_price }} грн</div>
-                        <small class="text-muted">{{ booking.car.price_per_day }} грн/доба</small>
-                    </td>
-                    <td class="text-muted">
-                        <small>{{ booking.created_at|date:"d.m.Y H:i" }}</small>
-                    </td>
-                    
-                    <td>
-                        {% if booking.is_past %}
-                            <span class="badge bg-secondary">{{ booking.status_label }}</span>
-                        {% else %}
-                            <span class="badge bg-success">{{ booking.status_label }}</span>
-                        {% endif %}
-                    </td>
-                    
-                    <td>
-                        {% if not booking.is_past %}
-                            <form action="{% url 'cancel_booking' booking.pk %}" method="post"
-                                onsubmit="return confirm('Ви впевнені, що хочете скасувати це бронювання?');">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-danger btn-sm">
-                                    ❌ Скасувати
-                                </button>
-                            </form>
-                        {% else %}
-                            <span class="text-muted small fw-bold">Угода закрита</span>
-                        {% endif %}
-                    </td>
-                </tr> 
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <div class="alert alert-info text-center">
-            У вас поки немає активних бронювань.
-            <a href="{% url 'car_list' %}">Вибрати авто</a>
-        </div>
-        {% endif %}
+                    <div class="col">
+                        <div class="card shadow-sm border-0">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center py-3">
+                                <h5 class="mb-0 fw-bold text-dark">{{ booking.car.brand }} {{ booking.car.model }}</h5>
+                                {% if booking.is_past %}
+                                    <span class="badge bg-secondary fs-6">Завершено</span>
+                                {% else %}
+                                    <span class="badge bg-success fs-6">Активно</span>
+                                {% endif %}
+                            </div>
+                            <div class="card-body row align-items-center">
+                                <div class="col-md-3 mb-3 mb-md-0">
+                                    <p class="text-muted mb-1 small text-uppercase fw-bold">Час початку:</p>
+                                    <h6 class="fw-bold">{{ booking.start_date|date:"d.m.Y H:i" }}</h6>
+                                </div>
+                                <div class="col-md-3 mb-3 mb-md-0">
+                                    <p class="text-muted mb-1 small text-uppercase fw-bold">Час завершення:</p>
+                                    <h6 class="fw-bold">{{ booking.end_date|date:"d.m.Y H:i" }}</h6>
+                                </div>
+                                <div class="col-md-2 mb-3 mb-md-0">
+                                    <p class="text-muted mb-1 small text-uppercase fw-bold">До сплати:</p>
+                                    <h5 class="text-success fw-bold mb-0">{{ booking.total_price }} ₴</h5>
+                                </div>
+                                
+                                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                                    <a href="{% url 'download_invoice' booking.pk %}" class="btn btn-primary btn-sm me-2 shadow-sm fw-bold">
+                                        📄 Завантажити PDF
+                                    </a>
 
+                                    {% if not booking.is_past %}
+                                        <form action="{% url 'cancel_booking' booking.pk %}" method="post" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger btn-sm shadow-sm fw-bold" onclick="return confirm('Ви впевнені, що хочете скасувати це бронювання?');">
+                                                ❌ Скасувати
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5 bg-white shadow-sm rounded border-0">
+                <h4 class="text-muted mb-3">У вас ще немає жодного бронювання 🚗</h4>
+                <a href="{% url 'car_list' %}" class="btn btn-primary px-4 fw-bold shadow-sm">Перейти до автопарку</a>
+            </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
