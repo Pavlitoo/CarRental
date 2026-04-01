@@ -119,15 +119,24 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        // Читаємо дані так, як вимагає сучасний стандарт (VS Code тепер щасливий!)
-        var labelsArray = JSON.parse(document.getElementById('labels-data').textContent);
+        // Отримуємо сирі дані з бекенду (наприклад: ["2026-02-04", ...])
+        var rawLabels = JSON.parse(document.getElementById('labels-data').textContent);
         var revenueArray = JSON.parse(document.getElementById('revenue-data').textContent);
+
+        // 🚨 МАГІЯ ДИЗАЙНУ: Перетворюємо довгі дати на короткі (2026-02-04 -> 04.02)
+        var formattedLabels = rawLabels.map(function(dateStr) {
+            var parts = dateStr.split('-');
+            if(parts.length === 3) {
+                return parts[2] + '.' + parts[1]; // Беремо тільки День і Місяць
+            }
+            return dateStr;
+        });
 
         var ctx = document.getElementById('revenueChart').getContext('2d');
         var chart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: labelsArray,
+                labels: formattedLabels, // Використовуємо наші красиві короткі дати
                 datasets: [{
                     label: 'Прибуток (ГРН)',
                     data: revenueArray,
@@ -135,22 +144,44 @@
                     borderColor: 'rgba(13, 110, 253, 1)',
                     borderWidth: 2,
                     fill: true,
-                    tension: 0.3,
+                    tension: 0.4, // Зробив лінію ще більш плавною
                     pointBackgroundColor: '#0d6efd',
                     pointBorderColor: '#fff',
                     pointBorderWidth: 2,
-                    pointRadius: 4
+                    pointRadius: 4,
+                    pointHoverRadius: 6
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: function(context) {
+                                return 'Дата: ' + context[0].label;
+                            }
+                        }
+                    }
                 },
                 scales: {
-                    y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
-                    x: { grid: { display: false } }
+                    y: { 
+                        beginAtZero: true, 
+                        grid: { color: '#f0f0f0', drawBorder: false }
+                    },
+                    x: { 
+                        grid: { display: false, drawBorder: false },
+                        ticks: {
+                            maxRotation: 0, // Забороняємо тексту нахилятися (завжди горизонтально)
+                            autoSkip: true, // Якщо екрам маленький, автоматично ховати деякі дати, щоб не було каші
+                            font: {
+                                size: 11,
+                                weight: 'bold'
+                            },
+                            color: '#6c757d'
+                        }
+                    }
                 }
             }
         });

@@ -4,16 +4,20 @@ import csv
 import json
 import qrcode
 import re
+import random 
 from PIL import Image
 import pytesseract
 
 from django.shortcuts import render, get_object_or_404, redirect
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Value # 🚨 Додали Value
+from django.db.models.functions import Concat # 🚨 Додали Concat для розумного пошуку
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import login
+from django.contrib.auth.models import User
 from django.utils import timezone
 from django.utils.timezone import localtime
-from django.core.mail import send_mail
+from django.core.mail import send_mail 
+from django.conf import settings 
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.db import transaction 
 from datetime import datetime
@@ -28,10 +32,8 @@ from reportlab.pdfbase import pdfmetrics
 from .models import Car, Booking, Category, Review, PromoCode, UserProfile
 from .forms import BookingForm, ReviewForm, CustomSignupForm, VerifyForm
 
-# ВКАЖИ ШЛЯХ ДО TESSERACT (Стандарт для Windows)
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-# 🚨 АВТОМАТИЧНА ВЕРИФІКАЦІЯ ЧЕРЕЗ ШІ (OCR) 🚨
 @login_required
 def verify_view(request):
     profile = request.user.profile
@@ -42,13 +44,8 @@ def verify_view(request):
         form = VerifyForm(request.POST, request.FILES, instance=profile)
         if form.is_valid():
             try:
-                # 1. Читаємо зображення прямо з пам'яті
                 image = Image.open(request.FILES['passport_photo'])
-                
-                # 2. Розпізнаємо текст (використовуємо укр та англ мови)
                 extracted_text = pytesseract.image_to_string(image, lang='ukr+eng')
-                
-                # 3. Шукаємо дати формату ДД.ММ.РРРР
                 date_pattern = r'\d{2}[\.\s]\d{2}[\.\s]\d{4}'
                 found_dates = re.findall(date_pattern, extracted_text)
                 
@@ -56,21 +53,16 @@ def verify_view(request):
                     parsed_dates = []
                     for d in found_dates:
                         try:
-                            # Очищаємо пробіли та перетворюємо в об'єкт дати
                             clean_d = d.replace(' ', '.')
                             parsed_dates.append(datetime.strptime(clean_d, '%d.%m.%Y'))
                         except: continue
                     
                     if parsed_dates:
-                        # Беремо найменшу дату на документі — це і є день народження
                         birth_date_from_pic = min(parsed_dates)
-                        
-                        # 4. Рахуємо вік
                         today = datetime.now()
                         age = today.year - birth_date_from_pic.year - ((today.month, today.day) < (birth_date_from_pic.month, birth_date_from_pic.day))
                         
                         if age >= 18:
-                            # УСПІХ! Оновлюємо дані в профілі автоматично
                             profile.is_verified = True
                             profile.birth_date = birth_date_from_pic.date()
                             profile.verification_date = timezone.now()
@@ -91,20 +83,38 @@ def verify_view(request):
         
     return render(request, 'cars/verify.html', {'form': form})
 
+# 🚨 ОНОВЛЕНИЙ РОЗУМНИЙ ПОШУК 🚨
 def car_list(request):
     cars = Car.objects.filter(is_available=True)
     categories = Category.objects.all()
-    query = request.GET.get('q')
-    max_price = request.GET.get('max_price')
-    category_id = request.GET.get('category')
     
-    if query: cars = cars.filter(Q(brand__icontains=query) | Q(model__icontains=query))
+    query = request.GET.get('q', '').strip()
+    max_price = request.GET.get('max_price', '').strip()
+    category_id = request.GET.get('category', '')
+    
+    if query: 
+        # Магія: створюємо віртуальне поле full_name ("Марка Модель") і шукаємо по ньому
+        cars = cars.annotate(
+            full_name=Concat('brand', Value(' '), 'model')
+        ).filter(
+            Q(full_name__icontains=query) | 
+            Q(brand__icontains=query) | 
+            Q(model__icontains=query)
+        )
+        
     if max_price:
-        try: cars = cars.filter(price_per_day__lte=float(max_price))
-        except ValueError: pass
-    if category_id: cars = cars.filter(category_id=category_id)
+        try: 
+            cars = cars.filter(price_per_day__lte=float(max_price))
+        except ValueError: 
+            pass
             
-    return render(request, 'cars/car_list.html', {'cars': cars, 'categories': categories, 'query': query, 'max_price': max_price, 'selected_category': category_id})
+    if category_id: 
+        cars = cars.filter(category_id=category_id)
+            
+    return render(request, 'cars/car_list.html', {
+        'cars': cars, 'categories': categories, 'query': query, 
+        'max_price': max_price, 'selected_category': category_id
+    })
 
 def car_detail(request, pk):
     car = get_object_or_404(Car, pk=pk)
@@ -129,7 +139,6 @@ def car_detail(request, pk):
         else:
             form = BookingForm(request.POST)
             if form.is_valid():
-                # Перевірка верифікації перед бронюванням
                 if request.user.is_authenticated:
                     if not request.user.profile.is_verified:
                         return redirect('verify')
@@ -201,15 +210,66 @@ def my_bookings(request):
     return render(request, 'cars/my_bookings.html', {'bookings': bookings})
 
 def signup(request):
+    if request.user.is_authenticated:
+        return redirect('car_list')
+
     if request.method == 'POST':
         form = CustomSignupForm(request.POST) 
         if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return redirect('car_list')
+            user = form.save(commit=False)
+            user.is_active = False 
+            user.save()
+            
+            profile = user.profile
+            profile.birth_date = form.cleaned_data['birth_date']
+            profile.driving_experience = form.cleaned_data['driving_experience']
+            profile.save()
+
+            otp_code = str(random.randint(100000, 999999))
+            request.session['otp_user_id'] = user.id
+            request.session['otp_code'] = otp_code
+            
+            try:
+                send_mail(
+                    'CarRental — Підтвердження реєстрації',
+                    f'Привіт!\n\nВаш код підтвердження: {otp_code}\n\nВведіть його на сайті, щоб активувати акаунт.',
+                    settings.DEFAULT_FROM_EMAIL,
+                    [user.email],
+                    fail_silently=False,
+                )
+                return redirect('verify_email') 
+            except Exception as e:
+                user.delete() 
+                form.add_error(None, f'Помилка відправки листа на {user.email}. Перевірте налаштування пошти (.env). Деталі: {e}')
     else:
         form = CustomSignupForm() 
     return render(request, 'registration/signup.html', {'form': form})
+
+def verify_email_view(request):
+    if 'otp_user_id' not in request.session:
+        return redirect('signup')
+        
+    error_message = None
+    if request.method == 'POST':
+        user_code = request.POST.get('otp_code')
+        correct_code = request.session.get('otp_code')
+        
+        if user_code == correct_code:
+            user_id = request.session.get('otp_user_id')
+            user = User.objects.get(id=user_id)
+            user.is_active = True
+            user.save()
+            
+            del request.session['otp_user_id']
+            del request.session['otp_code']
+            
+            login(request, user)
+            return redirect('car_list')
+        else:
+            error_message = "Невірний код. Перевірте пошту і спробуйте ще раз."
+            
+    return render(request, 'registration/verify_email.html', {'error_message': error_message})
+
 
 @login_required
 def cancel_booking(request, pk):
@@ -239,10 +299,17 @@ def export_bookings_csv(request):
         writer.writerow([f"{b.car.brand} {b.car.model}", localtime(b.start_date).strftime("%d.%m.%Y %H:%M"), localtime(b.end_date).strftime("%d.%m.%Y %H:%M"), b.amount_due, "Завершено" if b.is_past else "Активно"])
     return response
 
+# 🚨 ОНОВЛЕНО АВТОДОПОВНЕННЯ (ТАКОЖ ДЛЯ ПОВНИХ НАЗВ) 🚨
 def car_suggestions(request):
-    query = request.GET.get('q', '')
+    query = request.GET.get('q', '').strip()
     if query:
-        cars = Car.objects.filter(Q(brand__icontains=query) | Q(model__icontains=query))[:5]
+        cars = Car.objects.annotate(
+            full_name=Concat('brand', Value(' '), 'model')
+        ).filter(
+            Q(full_name__icontains=query) | 
+            Q(brand__icontains=query) | 
+            Q(model__icontains=query)
+        )[:5]
         results = list(set([f"{car.brand} {car.model}" for car in cars]))
     else:
         results = []
@@ -274,7 +341,7 @@ def dashboard(request):
         'total_cars': total_cars, 'total_bookings': total_bookings, 'active_bookings': active_bookings,
         'total_revenue': total_revenue, 'total_discounts': total_discounts,
         'popular_cars': popular_cars, 'recent_bookings': all_bookings[:15],
-        'chart_labels': json.dumps(sorted_dates), 'chart_data': json.dumps(chart_data),
+        'chart_labels': sorted_dates, 'chart_data': chart_data,
     }
     return render(request, 'cars/dashboard.html', context)
 

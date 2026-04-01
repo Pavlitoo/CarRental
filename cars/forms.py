@@ -4,6 +4,12 @@ from django.contrib.auth.models import User
 from .models import Booking, Review, UserProfile
 
 class CustomSignupForm(UserCreationForm):
+    # 🚨 ДОДАЛИ ОБОВ'ЯЗКОВЕ ПОЛЕ EMAIL 🚨
+    email = forms.EmailField(
+        label="Електронна пошта", 
+        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'example@mail.com'}),
+        required=True
+    )
     birth_date = forms.DateField(
         label="Дата народження", 
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
@@ -18,11 +24,13 @@ class CustomSignupForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = UserCreationForm.Meta.fields
+        fields = UserCreationForm.Meta.fields + ('email',) # Додали email до полів
 
     def save(self, commit=True):
-        user = super().save(commit=commit)
+        user = super().save(commit=False)
+        user.email = self.cleaned_data['email'] # Зберігаємо email
         if commit:
+            user.save()
             profile = user.profile
             profile.birth_date = self.cleaned_data['birth_date']
             profile.driving_experience = self.cleaned_data['driving_experience']

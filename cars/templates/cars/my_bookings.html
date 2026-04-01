@@ -5,8 +5,8 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2 class="fw-bold text-dark mb-0">🗂️ Мої бронювання</h2>
-            <a href="{% url 'export_bookings_csv' %}" class="btn btn-outline-success">
-                <i class="bi bi-file-earmark-excel"></i> Експорт у CSV
+            <a href="{% url 'export_bookings_csv' %}" class="btn btn-outline-success rounded-pill fw-bold shadow-sm">
+                <i class="bi bi-file-earmark-excel me-1"></i> Експорт у CSV
             </a>
         </div>
 
@@ -16,24 +16,34 @@
                     <div class="col">
                         <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
                             <div class="card-header bg-light d-flex justify-content-between align-items-center py-3 border-0">
-                                <h5 class="mb-0 fw-bold text-dark">{{ booking.car.brand }} {{ booking.car.model }}</h5>
+                                <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-car-front-fill text-primary me-2"></i>{{ booking.car.brand }} {{ booking.car.model }}</h5>
                                 {% if booking.is_past %}
-                                    <span class="badge bg-secondary fs-6 rounded-pill">Завершено</span>
+                                    <span class="badge bg-secondary fs-6 rounded-pill shadow-sm"><i class="bi bi-check-circle me-1"></i>Завершено</span>
                                 {% else %}
-                                    <span class="badge bg-success fs-6 rounded-pill">Активно</span>
+                                    <span class="badge bg-success fs-6 rounded-pill shadow-sm"><i class="bi bi-play-circle me-1"></i>Активно</span>
                                 {% endif %}
                             </div>
-                            <div class="card-body row align-items-center bg-white">
-                                <div class="col-md-3 mb-3 mb-md-0">
-                                    <p class="text-muted mb-1 small text-uppercase fw-bold">Час початку:</p>
-                                    <h6 class="fw-bold">{{ booking.start_date|date:"d.m.Y H:i" }}</h6>
-                                </div>
-                                <div class="col-md-3 mb-3 mb-md-0">
-                                    <p class="text-muted mb-1 small text-uppercase fw-bold">Час завершення:</p>
-                                    <h6 class="fw-bold">{{ booking.end_date|date:"d.m.Y H:i" }}</h6>
+                            <div class="card-body row align-items-center bg-white py-4">
+                                
+                                <div class="col-md-3 mb-3 mb-md-0 d-flex flex-column align-items-start align-items-md-center border-end-md">
+                                    <p class="text-muted mb-2 small text-uppercase fw-bold"><i class="bi bi-box-arrow-in-right me-1"></i>Отримання:</p>
+                                    <div class="date-badge">
+                                        <div class="day">{{ booking.start_date|date:"d" }}</div>
+                                        <div class="month-year">{{ booking.start_date|date:"M, Y" }}</div>
+                                        <div class="time"><i class="bi bi-clock me-1"></i>{{ booking.start_date|date:"H:i" }}</div>
+                                    </div>
                                 </div>
                                 
-                                <div class="col-md-2 mb-3 mb-md-0">
+                                <div class="col-md-3 mb-3 mb-md-0 d-flex flex-column align-items-start align-items-md-center border-end-md">
+                                    <p class="text-muted mb-2 small text-uppercase fw-bold"><i class="bi bi-box-arrow-left me-1"></i>Повернення:</p>
+                                    <div class="date-badge">
+                                        <div class="day">{{ booking.end_date|date:"d" }}</div>
+                                        <div class="month-year">{{ booking.end_date|date:"M, Y" }}</div>
+                                        <div class="time"><i class="bi bi-clock me-1"></i>{{ booking.end_date|date:"H:i" }}</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-2 mb-3 mb-md-0 ps-md-4">
                                     <p class="text-muted mb-1 small text-uppercase fw-bold">До сплати:</p>
                                     <h5 class="text-success fw-bold mb-0">{{ booking.amount_due }} ₴</h5>
                                     {% if booking.paid_with_balance > 0 or booking.promo_discount_amount > 0 %}
@@ -94,7 +104,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        {% endif %}
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -102,11 +112,19 @@
                 {% endfor %}
             </div>
         {% else %}
-            <div class="text-center py-5 bg-white shadow-sm rounded border-0">
+            <div class="text-center py-5 bg-white shadow-sm rounded border-0 mt-3">
                 <h4 class="text-muted mb-3">У вас ще немає жодного бронювання 🚗</h4>
                 <a href="{% url 'car_list' %}" class="btn btn-primary px-4 fw-bold shadow-sm rounded-pill mt-2">Перейти до автопарку</a>
             </div>
         {% endif %}
     </div>
 </div>
+
+<style>
+    @media (min-width: 768px) {
+        .border-end-md {
+            border-right: 1px solid #dee2e6;
+        }
+    }
+</style>
 {% endblock %}

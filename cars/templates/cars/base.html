@@ -19,7 +19,6 @@
         .footer {
             flex-shrink: 0;
         }
-        /* Стиль для гаманця (без обводки) */
         .wallet-badge {
             background-color: rgba(25, 135, 84, 0.15);
             color: #198754;
@@ -29,6 +28,16 @@
         .wallet-badge:hover {
             background-color: rgba(25, 135, 84, 0.25);
         }
+        /* 🚨 СТИЛЬ ДЛЯ КОМПАКТНИХ ДАТ У ТАБЛИЦЯХ 🚨 */
+        .date-badge {
+            display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+            background-color: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 4px 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03); min-width: 60px; text-align: center;
+        }
+        .date-badge .day { font-size: 1.1rem; font-weight: 800; color: #0d6efd; line-height: 1; }
+        .date-badge .month-year { font-size: 0.65rem; text-transform: uppercase; color: #6c757d; margin-top: 2px; }
+        .date-badge .time { font-size: 0.7rem; font-weight: 600; color: #212529; background-color: #f8f9fa; padding: 1px 4px; border-radius: 4px; margin-top: 3px; border: 1px solid #eee; }
+        table .col-date { width: 85px; text-align: center; vertical-align: middle; }
     </style>
 </head>
 <body class="d-flex flex-column min-vh-100">
