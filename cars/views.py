@@ -9,8 +9,8 @@ from PIL import Image
 import pytesseract
 
 from django.shortcuts import render, get_object_or_404, redirect
-from django.db.models import Q, Count, Value # 🚨 Додали Value
-from django.db.models.functions import Concat # 🚨 Додали Concat для розумного пошуку
+from django.db.models import Q, Count, Value
+from django.db.models.functions import Concat 
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import login
 from django.contrib.auth.models import User

@@ -1,6 +1,8 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 from .models import Booking, Review, UserProfile
 
 class CustomSignupForm(UserCreationForm):
@@ -24,11 +26,11 @@ class CustomSignupForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = UserCreationForm.Meta.fields + ('email',) # Додали email до полів
+        fields = UserCreationForm.Meta.fields + ('email',)
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.email = self.cleaned_data['email'] # Зберігаємо email
+        user.email = self.cleaned_data['email']
         if commit:
             user.save()
             profile = user.profile
@@ -65,6 +67,28 @@ class BookingForm(forms.ModelForm):
             'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
             'end_date': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
         }
+
+    # 🚨 НОВИЙ БЛОК: ЗАХИСТ ТА ВАЛІДАЦІЯ ДАТ 🚨
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+
+        if start_date and end_date:
+            # 1. Перевірка: чи не в минулому часі
+            if start_date < timezone.now():
+                self.add_error('start_date', "Неможливо забронювати авто в минулому часі!")
+            
+            # 2. Перевірка: логіка дат
+            if end_date <= start_date:
+                self.add_error('end_date', "Час завершення має бути пізніше часу початку!")
+            
+            # 3. Перевірка: ліміт на максимальну кількість днів (наприклад, 30)
+            duration = end_date - start_date
+            if duration.days > 30:
+                self.add_error('end_date', "Максимальний термін оренди авто становить 30 днів!")
+
+        return cleaned_data
 
 class ReviewForm(forms.ModelForm):
     class Meta:
