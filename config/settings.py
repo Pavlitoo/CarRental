@@ -106,3 +106,4 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
 CSRF_TRUSTED_ORIGINS = ['https://*.ngrok-free.dev', 'https://*.ngrok-free.app']
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
