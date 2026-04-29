@@ -20,7 +20,7 @@ SECRET_KEY = 'django-insecure-uzw1x3##0rn%r1%g)n-&q7a90lp@nlvfj*-ttgh58qf3&akgxe
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
@@ -103,3 +103,6 @@ EMAIL_HOST_USER = os.getenv('EMAIL_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_PASS') 
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+CSRF_TRUSTED_ORIGINS = ['https://*.ngrok-free.app']
