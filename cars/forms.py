@@ -1,3 +1,4 @@
+import datetime
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
@@ -6,7 +7,6 @@ from django.utils import timezone
 from .models import Booking, Review, UserProfile
 
 class CustomSignupForm(UserCreationForm):
-    # 🚨 ДОДАЛИ ОБОВ'ЯЗКОВЕ ПОЛЕ EMAIL 🚨
     email = forms.EmailField(
         label="Електронна пошта", 
         widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'example@mail.com'}),
@@ -39,7 +39,6 @@ class CustomSignupForm(UserCreationForm):
             profile.save()
         return user
 
-# 🚨 ФОРМА ДЛЯ ЗАВАНТАЖЕННЯ ПАСПОРТА 🚨
 class VerifyForm(forms.ModelForm):
     class Meta:
         model = UserProfile
@@ -68,25 +67,26 @@ class BookingForm(forms.ModelForm):
             'end_date': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
         }
 
-    # 🚨 НОВИЙ БЛОК: ЗАХИСТ ТА ВАЛІДАЦІЯ ДАТ 🚨
     def clean(self):
         cleaned_data = super().clean()
         start_date = cleaned_data.get('start_date')
         end_date = cleaned_data.get('end_date')
 
         if start_date and end_date:
-            # 1. Перевірка: чи не в минулому часі
-            if start_date < timezone.now():
+            # Даємо буфер 15 хвилин для поточного часу (захист від часових поясів)
+            now_with_buffer = timezone.now() - datetime.timedelta(minutes=15)
+            if start_date < now_with_buffer:
                 self.add_error('start_date', "Неможливо забронювати авто в минулому часі!")
             
-            # 2. Перевірка: логіка дат
             if end_date <= start_date:
                 self.add_error('end_date', "Час завершення має бути пізніше часу початку!")
             
-            # 3. Перевірка: ліміт на максимальну кількість днів (наприклад, 30)
             duration = end_date - start_date
             if duration.days > 30:
                 self.add_error('end_date', "Максимальний термін оренди авто становить 30 днів!")
+            
+            if duration.total_seconds() < 3600:
+                self.add_error('end_date', "Мінімальний час оренди становить 1 годину!")
 
         return cleaned_data
 

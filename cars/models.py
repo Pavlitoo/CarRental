@@ -34,7 +34,7 @@ class UserProfile(models.Model):
     birth_date = models.DateField(null=True, blank=True, verbose_name="Дата народження")
     driving_experience = models.IntegerField(default=0, verbose_name="Стаж водіння (років)")
     
-    # 🚨 НОВІ ПОЛЯ: АВТО-ВЕРИФІКАЦІЯ (KYC) 🚨
+    # АВТО-ВЕРИФІКАЦІЯ (KYC)
     passport_photo = models.ImageField(upload_to='passports/', null=True, blank=True, verbose_name="Фото паспорта")
     is_verified = models.BooleanField(default=False, verbose_name="Верифіковано (18+)")
     verification_date = models.DateTimeField(null=True, blank=True, verbose_name="Дата верифікації")

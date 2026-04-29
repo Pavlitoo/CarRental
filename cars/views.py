@@ -21,6 +21,7 @@ from django.conf import settings
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.db import transaction 
 from datetime import datetime
+from django.contrib import messages # 🚨 НОВИЙ ІМПОРТ ПОВІДОМЛЕНЬ
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -83,7 +84,6 @@ def verify_view(request):
         
     return render(request, 'cars/verify.html', {'form': form})
 
-# 🚨 ОНОВЛЕНИЙ РОЗУМНИЙ ПОШУК 🚨
 def car_list(request):
     cars = Car.objects.filter(is_available=True)
     categories = Category.objects.all()
@@ -93,7 +93,6 @@ def car_list(request):
     category_id = request.GET.get('category', '')
     
     if query: 
-        # Магія: створюємо віртуальне поле full_name ("Марка Модель") і шукаємо по ньому
         cars = cars.annotate(
             full_name=Concat('brand', Value(' '), 'model')
         ).filter(
@@ -135,23 +134,23 @@ def car_detail(request, pk):
                 review.car = car
                 review.user = request.user
                 review.save()
+                messages.success(request, "Ваш відгук успішно додано!")
                 return redirect('car_detail', pk=car.pk)
         else:
             form = BookingForm(request.POST)
             if form.is_valid():
-                if request.user.is_authenticated:
-                    if not request.user.profile.is_verified:
-                        return redirect('verify')
+                # Перевірка верифікації
+                if request.user.is_authenticated and getattr(request.user, 'profile', None) and not request.user.profile.is_verified:
+                    messages.warning(request, "Для оренди авто необхідно пройти верифікацію віку (18+).")
+                    return redirect('verify')
                 
                 start = form.cleaned_data['start_date']
                 end = form.cleaned_data['end_date']
 
-                if end <= start:
-                    form.add_error(None, "Час закінчення має бути пізніше часу початку!")
-                elif Booking.objects.filter(car=car, start_date__lt=end, end_date__gt=start).exists():
-                    form.add_error(None, "Вибачте, на цей час машина вже заброньована!")
-
-                if not form.errors:
+                # Перевірка накладання дат
+                if Booking.objects.filter(car=car, start_date__lt=end, end_date__gt=start).exists():
+                    messages.error(request, "Вибачте, на ці дати машина вже заброньована іншим клієнтом!")
+                else:
                     with transaction.atomic():
                         booking = form.save(commit=False)
                         booking.car = car
@@ -173,11 +172,11 @@ def car_detail(request, pk):
                                     promo.current_uses += 1
                                     promo.save()
                                 else:
-                                    form.add_error('promo_code_entry', "Промокод недійсний")
-                                    return render(request, 'cars/car_detail.html', {'car': car, 'form': form, 'review_form': review_form, 'reviews': reviews, 'can_review': can_review, 'user_balance': getattr(request.user.profile, 'loyalty_balance', 0)})
+                                    messages.error(request, "Промокод недійсний або його ліміт вичерпано.")
+                                    return redirect('car_detail', pk=car.pk)
                             except PromoCode.DoesNotExist:
-                                form.add_error('promo_code_entry', "Код не знайдено")
-                                return render(request, 'cars/car_detail.html', {'car': car, 'form': form, 'review_form': review_form, 'reviews': reviews, 'can_review': can_review, 'user_balance': getattr(request.user.profile, 'loyalty_balance', 0)})
+                                messages.error(request, "Такого промокоду не існує.")
+                                return redirect('car_detail', pk=car.pk)
 
                         use_balance = form.cleaned_data.get('use_balance')
                         profile = request.user.profile
@@ -196,7 +195,13 @@ def car_detail(request, pk):
                         booking.paid_with_balance = deducted_amount
                         booking.save() 
 
+                    messages.success(request, "Бронювання успішно оформлено!")
                     return redirect('my_bookings')
+            else:
+                # ВАЖЛИВО: Передаємо помилки з форми в систему повідомлень
+                for field, errors in form.errors.items():
+                    for error in errors:
+                        messages.error(request, error)
 
     user_balance = request.user.profile.loyalty_balance if request.user.is_authenticated else 0
 
@@ -299,7 +304,6 @@ def export_bookings_csv(request):
         writer.writerow([f"{b.car.brand} {b.car.model}", localtime(b.start_date).strftime("%d.%m.%Y %H:%M"), localtime(b.end_date).strftime("%d.%m.%Y %H:%M"), b.amount_due, "Завершено" if b.is_past else "Активно"])
     return response
 
-# 🚨 ОНОВЛЕНО АВТОДОПОВНЕННЯ (ТАКОЖ ДЛЯ ПОВНИХ НАЗВ) 🚨
 def car_suggestions(request):
     query = request.GET.get('q', '').strip()
     if query:
