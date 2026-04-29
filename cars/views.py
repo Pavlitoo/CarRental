@@ -7,6 +7,7 @@ import re
 import random 
 from PIL import Image
 import pytesseract
+import sys
 
 from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Q, Count, Value
@@ -33,7 +34,10 @@ from reportlab.pdfbase import pdfmetrics
 from .models import Car, Booking, Category, Review, PromoCode, UserProfile
 from .forms import BookingForm, ReviewForm, CustomSignupForm, VerifyForm
 
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+if sys.platform == 'win32':
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+else:
+    pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 
 @login_required
 def verify_view(request):
